@@ -511,6 +511,39 @@ setTimeout(() => {
   check('B14 (Q044) 10 biomes / 3 levels / 10s morph, with fire-hush and spawn pause', b14ok,
         r14.__err ? r14.__err : JSON.stringify(r14));
 
+  // --- behaviour 15 (Q064): consumable price loop ---
+  const b15 = ev(`(function(){
+    try {
+      var C = CONFIG.consumables, out = { cfg: C };
+      var lucky = CONSUMABLES.find(function(c){ return c.id === 'lucky'; });
+      out.base = lucky.base;
+      var costs = [];
+      for (var n = 0; n <= 7; n++) {
+        consumables().lucky = n;
+        costs.push(shopCost(lucky));
+      }
+      out.costs = costs;
+      consumables().lucky = 0;
+      // an Armory item must keep its uncapped per-purchase growth
+      var arm = SHOP_ITEMS.find(function(i){ return !i.cycle; });
+      state.meta = state.meta || {};
+      state.meta[arm.id] = 0; var c0 = shopCost(arm);
+      state.meta[arm.id] = 3; var c3 = shopCost(arm);
+      out.armory = { id: arm.id, at0: c0, at3: c3, grows: c3 > c0 };
+      out.armoryIsCycling = !!arm.cycle;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r15 = parsed(b15);
+  // base 400, x3 per step, 5-step loop: 400 1200 3600 10800 32400 400 1200 3600
+  const want = [400, 1200, 3600, 10800, 32400, 400, 1200, 3600];
+  const b15ok = !r15.__err
+    && r15.cfg.cycleLength === 5 && r15.cfg.priceMultPerStep === 3
+    && JSON.stringify(r15.costs) === JSON.stringify(want)
+    && r15.armory.grows === true && r15.armoryIsCycling === false;
+  check('B15 (Q064) consumables price x3 per step and reset every 5; Armory unchanged', b15ok,
+        r15.__err ? r15.__err : `costs ${JSON.stringify(r15.costs)} want ${JSON.stringify(want)}; armory ${JSON.stringify(r15.armory)}`);
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

@@ -58,14 +58,23 @@
             { id:'gold',    name:'24k Commander', color:0xfcd34d, cost:12000, archetype:'Sovereign',   arch:{ maxHp:25, damage:10,  speed:5,   armor:5,  regen:1   }, archdesc:'+25 HP, +10 DMG, +5 Armor — all-around elite.' },
         ];
         const CONSUMABLES = [ // v27: next-run boosts — unlimited, each extra copy costs more
-            { id:'lucky',     icon:'🍀', name:'Lucky Charm',  desc:'+20% coins next run',                 base:400, growth:1.55 },
-            { id:'headstart', icon:'🚀', name:'Head Start',   desc:'Next run starts with +1 free card',   base:550, growth:1.6 },
-            { id:'reroll',    icon:'🎲', name:'Card Reroll',  desc:'Reroll a level-up hand (next run)',   base:700, growth:1.55 },
-            { id:'overcharge',icon:'⚡', name:'Overcharge',   desc:'Next run: +30% damage for 60s',       base:600, growth:1.58 },
-            { id:'aegis',     icon:'🛡️', name:'Aegis Kit',    desc:'Next run: start with a charged shield', base:600, growth:1.58 },
+            { id:'lucky',     icon:'🍀', name:'Lucky Charm',  desc:'+20% coins next run',                 base:400, cycle:true },
+            { id:'headstart', icon:'🚀', name:'Head Start',   desc:'Next run starts with +1 free card',   base:550, cycle:true },
+            { id:'reroll',    icon:'🎲', name:'Card Reroll',  desc:'Reroll a level-up hand (next run)',   base:700, cycle:true },
+            { id:'overcharge',icon:'⚡', name:'Overcharge',   desc:'Next run: +30% damage for 60s',       base:600, cycle:true },
+            { id:'aegis',     icon:'🛡️', name:'Aegis Kit',    desc:'Next run: start with a charged shield', base:600, cycle:true },
         ];
         const consumables = () => state.consumables || (state.consumables = { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 });
-        const shopCost = (item) => Math.round(item.base * Math.pow(item.growth || 1.5, ((state.meta || {})[item.id] || 0)));
+        // Q064: consumables price in a repeating cycle; Armory items keep their original
+        // per-purchase growth, since those are permanent and meant to plateau.
+        const shopCost = (item) => {
+            if (item.cycle) {
+                const owned = consumables()[item.id] || 0;
+                const pos = owned % CONFIG.consumables.cycleLength;
+                return Math.round(item.base * Math.pow(CONFIG.consumables.priceMultPerStep, pos));
+            }
+            return Math.round(item.base * Math.pow(item.growth || 1.5, ((state.meta || {})[item.id] || 0)));
+        };
         function applyMetaDelta(stats, toMeta, fromMeta) { // v27.2: Armory bought on the death screen must hit Field Revive
             const t = toMeta || {}, f = fromMeta || {};
             const d = (id) => (t[id] || 0) - (f[id] || 0);

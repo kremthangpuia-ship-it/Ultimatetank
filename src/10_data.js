@@ -355,6 +355,16 @@
             // makes armour a tactical resource rather than an infinite second health bar.
             // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
             // (Q020) keeps working unchanged.
+            // Q064: consumable pricing is a repeating loop rather than an uncapped
+            // exponential. Each purchase within a cycle costs priceMultPerStep times the
+            // last, and the cycle restarts at base on the following purchase — so the 6th
+            // Aegis Kit costs the same as the 1st, the 11th the same again, and so on.
+            // An uncapped 1.58^n curve made the fifth copy effectively unpurchasable; a
+            // loop keeps the shop relevant for a whole session.
+            consumables: {
+                cycleLength: 5,
+                priceMultPerStep: 3
+            },
             // Q044: biome transitions. Ten realms, one every three levels, and the change
             // must be gradual — the terrain morphs over ten seconds rather than snapping.
             // Enemy fire is hushed for 1.5s and new spawns pause for 3s so a realm change
