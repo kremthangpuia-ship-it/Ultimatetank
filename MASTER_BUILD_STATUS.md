@@ -16,7 +16,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 
 ## Verified right now
 
-`node tools/check.js` → **16/16 checks passed**.
+`node tools/check.js` → **22/22 checks passed**.
 
 | Check | Result |
 |---|---|
@@ -31,6 +31,12 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 | **B2** evolution needs required COUNTS, not presence (Q131) | PASS |
 | **B3** fully soaked armour hit costs 0 HP (Q128) | PASS |
 | **B4** revive sets a real spawn pause (Q073/D-08) | PASS |
+| **B5** enemy damage curve matches Yt03 numbers; presets swap live (Q031/Q032) | PASS |
+| **B6** snapshot deep-copies the evolution counter (Q115) | PASS |
+| **B7** `noteRunCard` populates the force-offer guard's ownership list (Q022) | PASS |
+| **B8** missile volley caps at 10, extra stacks become overload (Q013) | PASS |
+| **B9** Adrenaline is 60s, +5%/stack damage is real, meter matches movement (Q011) | PASS |
+| **B10** armour pool derives from max HP, stamps delay clock, refills (Q016/17/18) | PASS |
 
 `tools/split.js` round-trips the Yt02 game script **exactly** (423,170 chars both ways), so the
 decomposition into `src/` is provably lossless. The built file differs from Yt02 only by the
@@ -57,21 +63,31 @@ intended deltas listed below.
 | **Q135** | Evolution card names converted to Title Case | `src/30_meta.js` |
 | **Q073 / D-08** | `applyReviveSafety()` and `hushHostileFire(5)` now actually called on revive; toast text corrected | `src/34_physics_hud.js` |
 | **Q137 / Q096** | Release harness: syntax + duplicate-decl + must-have greps + the four behaviour tests | `tools/check.js` |
+| **Q011** | Adrenaline Rush: 1.5s flicker → 60s refreshed buff with a live countdown; the +5%/stack damage Yt01 advertised but never applied (**D-05**) is now real in `shoot()`; movement, damage and meter read one pair of helpers | `src/26_tank_combat.js`, `src/34_physics_hud.js`, `src/28_pause_boss.js`, `src/38_cards_evos.js` |
+| **Q013** | Missile cadence fixed at 5s; stack count sets volley size, capped at 10; stacks past the cap widen (+8%) and strengthen (+10%) the blast | `src/26_tank_combat.js`, `src/34_physics_hud.js` |
+| **Q016** | Yt03's armour model: pool = `floor(maxHp × armor/100)`, recharge only after a 3s clean window at 10%/s. Storage stayed on `state` so Yt02's overlay survives | `src/26_tank_combat.js`, `src/34_physics_hud.js`, `src/32_run_flow.js`, `src/38_cards_evos.js` |
+| **Q017** | Repair kits fully refill; armour **and** max-HP cards re-derive the pool and credit the growth | `src/32_run_flow.js`, `src/38_cards_evos.js` |
+| **Q018** | Aegis Kit's 20-point base pool kept (now `CONFIG.armor.aegisBasePool`), gated to fresh runs only | `src/32_run_flow.js` |
+| **Q031** | `CONFIG.enemyDmg {base,slope,mid,late}` + `enemyCurvePresets` (Yt03 default, Yt01 easy). Yt02's stray `*1.5` removed (**D-04**) | `src/10_data.js`, `src/28_pause_boss.js` |
+| **Q032** | `CONFIG.enemyHp {base,perLevel}` — enemy HP now +3%/level | `src/10_data.js`, `src/28_pause_boss.js` |
+| **Q115 / Q022** | Both were already correct in the Yt02 base; B6 and B7 now guard them against regression | — |
 
 ---
 
 ## Still to implement
 
 The 131 answers break down as: **~62 "identical, keep as-is"** (no code change) and **~69 requiring
-work**. Of the latter, **16 are done**. The remainder, grouped:
+work**. Of the latter, **26 are done** — every P0 group is complete. The remainder, grouped:
 
-**P0 / high impact**
-- **Q031** parameterise `CONFIG.enemyDmg = {base, slope, mid, late}`, Yt03 numbers default + Yt01 easy preset — also removes Yt02's stray `*1.5` (**D-04**)
-- **Q016/Q017/Q018/Q020** armour merge: Yt03 pool math + 3s-delay recharge as the engine, Yt02 HUD overlay, Yt01 pickup refill, Yt02 Aegis 20-base-pool fix
-- **Q115** add `runCardCounts` to `snapshotRun()` and restore on resume
-- **Q011** Adrenaline: 60s duration + visible countdown + the +5%/stack made real in `shoot()`
-- **Q013** homing missiles stack count up to 10, then blast radius/damage scale
-- **Q022** first 5 picks force a card only if not already owned
+**P0 / high impact — COMPLETE**
+
+All P0 groups are implemented and covered by behaviour tests B5–B10: Q031, Q032, Q016, Q017,
+Q018, Q020, Q011, Q013. Q115 and Q022 turned out to be already correct in the Yt02 base and
+are now regression-guarded rather than changed.
+
+One bug was introduced and caught by the new armour test: `recalcArmorPool(false)` correctly
+only clamps, so `startGame()` would have begun a fresh run with the previous run's leftover
+pool. A fresh run now fills explicitly.
 
 **P1**
 - **Q038** port Yt01's six bespoke boss phase fights + Yt03 generic enrage fallback
