@@ -145,6 +145,13 @@
         }
 
         // v6(C): BOSSES — every 5th level one arrives; three kinds rotate
+        // Q038: bosses with a hand-written phase script in the enemy AI dispatch. Anything
+        // not listed here falls through to the generic enrage escalation, so a new boss can
+        // never ship without phases by accident.
+        const BESPOKE_PHASE_BOSSES = {
+            warlord: 1, colossus: 1, nova: 1, titan: 1, tempest: 1, fortress: 1
+        };
+
         const BOSS_KINDS = [ // v24: roster of six, rotating
             { type: 'warlord',  interval: 6.4 },   // Q039: doubled from 3.2 (Yt03's nerf)
             { type: 'tempest',  interval: 3.0 },
@@ -275,8 +282,13 @@
             updateBossBar();
         }
 
-        function bossSummon(boss, kind) { // Colossus reinforcement waves
-            for (let i = 0; i < 2; i++) {
+        // Q038: count parameter added. It previously always summoned exactly two, so
+        // Yt01's "reinforcement wave grows to 3 at phase 2" would have been a silent no-op
+        // — the call site would have passed 3 and been ignored. Default stays 2 so every
+        // existing caller behaves exactly as before.
+        function bossSummon(boss, kind, count) { // Colossus reinforcement waves
+            const n = (typeof count === 'number' && count > 0) ? count : 2;
+            for (let i = 0; i < n; i++) {
                 const a = Math.random() * Math.PI * 2;
                 // v26: minions scale exactly like normal spawns
                 makeScaledEnemy(kind, boss.mesh.position.x + Math.cos(a) * 7, boss.mesh.position.z + Math.sin(a) * 7);

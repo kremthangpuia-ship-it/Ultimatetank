@@ -544,6 +544,37 @@ setTimeout(() => {
   check('B15 (Q064) consumables price x3 per step and reset every 5; Armory unchanged', b15ok,
         r15.__err ? r15.__err : `costs ${JSON.stringify(r15.costs)} want ${JSON.stringify(want)}; armory ${JSON.stringify(r15.armory)}`);
 
+  // --- behaviour 16 (Q038): six bespoke phase bosses + generic fallback + summon count ---
+  const b16 = ev(`(function(){
+    try {
+      var out = {};
+      out.bespoke = Object.keys(BESPOKE_PHASE_BOSSES).sort();
+      // bossSummon must honour its count argument
+      var made = [];
+      var orig = makeScaledEnemy;
+      makeScaledEnemy = function (kind, x, z) { made.push(kind); };
+      try {
+        bossSummon({ type: 'colossus', mesh: { position: { x: 0, z: 0 } } }, 'scout', 3);
+        out.summon3 = made.length;
+        made = [];
+        bossSummon({ type: 'colossus', mesh: { position: { x: 0, z: 0 } } }, 'scout');
+        out.summonDefault = made.length;
+      } finally { makeScaledEnemy = orig; }
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r16 = parsed(b16);
+  // all six bespoke bosses must have a PHASE banner in the shipped source
+  const sixBanners = ['WARLORD', 'COLOSSUS', 'NOVA', 'TITAN', 'TEMPEST', 'FORTRESS']
+    .every(n => html.includes(n + ' \u2014 PHASE 2') && html.includes(n + ' \u2014 PHASE 3'));
+  const b16ok = !r16.__err
+    && JSON.stringify(r16.bespoke) === JSON.stringify(['colossus','fortress','nova','tempest','titan','warlord'])
+    && r16.summon3 === 3 && r16.summonDefault === 2
+    && sixBanners
+    && html.includes('PHASE 3: ENRAGED');
+  check('B16 (Q038) six bespoke phase fights, generic enrage fallback, summon honours count', b16ok,
+        r16.__err ? r16.__err : `bespoke ${JSON.stringify(r16.bespoke)}, summon(3)=${r16.summon3}, summon()=${r16.summonDefault}, all six banners=${sixBanners}`);
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

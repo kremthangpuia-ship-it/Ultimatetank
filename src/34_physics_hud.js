@@ -180,32 +180,79 @@
                     else if (dist < 14) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     const now = clock.getElapsedTime();
+
+                    // Q038: GENERIC ENRAGE FALLBACK, ported from Yt03. Any boss without a
+                    // bespoke phase script still escalates at the 60% and 30% thresholds, so
+                    // adding a seventh boss never ships a fight that stays flat from start to
+                    // finish. The six bespoke bosses are excluded so this does not stack on
+                    // top of their tailored phases.
+                    if (!BESPOKE_PHASE_BOSSES[e.type]) {
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) {
+                            e._phase = 3;
+                            showBossBanner(((e.name || e.type) + '').toUpperCase() + ' — PHASE 3: ENRAGED');
+                            try { showCombatText('ENRAGED!', e.mesh.position, '#ef4444', 16); } catch (err) {}
+                            e.damageMult = (e.damageMult || 1) * 1.25;
+                            e.speedMult = (e.speedMult || 1) * 1.15;
+                        } else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) {
+                            e._phase = 2;
+                            showBossBanner(((e.name || e.type) + '').toUpperCase() + ' — PHASE 2');
+                            try { showCombatText('PHASE 2!', e.mesh.position, '#f59e0b', 14); } catch (err) {}
+                            e.attackInterval = Math.max(0.8, (e.attackInterval || 2.0) * 0.8);
+                        }
+                    }
+
                     if (e.type === 'warlord') {
-                        if (now >= e.nextAttackAt) { // five-shell fan barrage
-                            e.nextAttackAt = now + e.attackInterval;
+                        // Q038 / Yt01: P2 = fan fires 20% faster · P3 = calls two scouts once
+                        // and every fan is followed by a second, offset fan.
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('WARLORD — PHASE 3'); }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('WARLORD — PHASE 2'); }
+                        const wInt = e.attackInterval * (((e._phase || 1) >= 2) ? 0.8 : 1);
+                        const wFan = () => {
                             createMuzzleFlash(e);
                             const base = _bossDir.set(toPlayer.x, 0, toPlayer.z).normalize();
                             for (let s = -2; s <= 2; s++) {
                                 spawnBullet(e, base.clone().applyAxisAngle(_bossAxis, s * 0.3), ENEMY_TYPES.warlord.damage);
                             }
+                        };
+                        if (now >= e.nextAttackAt) {
+                            e.nextAttackAt = now + wInt;
+                            wFan();
+                            if ((e._phase || 1) >= 3 && !e._p3Summoned) { e._p3Summoned = true; bossSummon(e, 'scout', 2); }
+                            if ((e._phase || 1) >= 3) e._dualAt = now + 0.45;
                         }
+                        if (e._dualAt && now >= e._dualAt) { e._dualAt = 0; wFan(); }
                     } else if (e.type === 'colossus') {
-                        if (e.hp < e.maxHp * 0.66 && !e.summoned1) { e.summoned1 = true; bossSummon(e, 'scout'); }
+                        // Q038 / Yt01: P2 = reinforcement wave grows to 3 · P3 = bonus triple
+                        // burst every 10s on top of the normal attack.
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('COLOSSUS — PHASE 3'); e._p3BurstAt = now + 10; }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('COLOSSUS — PHASE 2'); }
+                        if (e.hp < e.maxHp * 0.66 && !e.summoned1) { e.summoned1 = true; bossSummon(e, 'scout', ((e._phase || 1) >= 2) ? 3 : 2); }
                         if (e.hp < e.maxHp * 0.33 && !e.summoned2) { e.summoned2 = true; bossSummon(e, 'soldier'); }
                         if (now >= e.nextAttackAt) { e.nextAttackAt = now + e.attackInterval; e.burstLeft = 3; }
+                        if (e._p3BurstAt && now >= e._p3BurstAt) {
+                            e._p3BurstAt = now + 10;
+                            e.burstLeft = 3; e.burstTimer = now;
+                            showBossBanner('COLOSSUS — EXTRA BURST');
+                        }
                         if (e.burstLeft > 0 && now >= e.burstTimer) {
                             e.burstLeft--; e.burstTimer = now + 0.18;
                             if (e.burstLeft === 2) createMuzzleFlash(e);
                             spawnBullet(e, _bossDir.set(toPlayer.x, 0, toPlayer.z).normalize(), ENEMY_TYPES.colossus.damage);
                         }
                     } else if (e.type === 'nova') {
-                        if (now >= e.nextAttackAt) { // eight-way nova ring
+                        // Q038 / Yt01: P2 = double ring · P3 = triple ring.
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('NOVA — PHASE 3'); }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('NOVA — PHASE 2'); }
+                        const nRings = (e._phase || 1) >= 3 ? 3 : ((e._phase || 1) >= 2 ? 2 : 1);
+                        if (now >= e.nextAttackAt) { // eight-way nova ring, repeated per phase
                             e.nextAttackAt = now + e.attackInterval;
                             e.mesh.traverse(c => { if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = 1; } });
                             createMuzzleFlash(e);
-                            for (let s = 0; s < 8; s++) {
-                                const a = s / 8 * Math.PI * 2;
-                                spawnBullet(e, _bossDir.set(Math.sin(a), 0, Math.cos(a)), ENEMY_TYPES.nova.damage);
+                            for (let r = 0; r < nRings; r++) {
+                                for (let s = 0; s < 8; s++) {
+                                    const a = (s / 8 * Math.PI * 2) + r * (Math.PI / 8);
+                                    spawnBullet(e, _bossDir.set(Math.sin(a), 0, Math.cos(a)), ENEMY_TYPES.nova.damage);
+                                }
                             }
                         } else if (e.nextAttackAt - now > 1.2) { // cloaked while charging
                             const cloackO = 0.15 + 0.1 * Math.sin(now * 3);
@@ -298,15 +345,26 @@
                             }
                         }
                     } else if (e.type === 'fortress') { // v24: spiral barrage with rest cycles
+                        // Q038 / Yt01: P2 = faster spin · P3 = three arms plus a
+                        // counter-rotating set, so the safe gaps close up.
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('FORTRESS — PHASE 3'); }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('FORTRESS — PHASE 2'); }
                         if (dist > 30) step(_sv1.set(toPlayer.x, toPlayer.z).normalize().multiplyScalar(0.5));
                         e.aimAt(player.mesh.position, dt);
-                        e.spiralAngle = (e.spiralAngle || 0) + dt * 2.4;
+                        e.spiralAngle = (e.spiralAngle || 0) + dt * (((e._phase || 1) >= 2) ? 3.0 : 2.4);
                         if (now >= (e.restUntil || 0)) {
                             if (e.firing && now >= (e.nextSpiral || 0)) {
                                 e.nextSpiral = now + 0.22;
-                                for (let s2 = 0; s2 < 2; s2++) {
-                                    const a3 = e.spiralAngle + s2 * Math.PI;
+                                const fArms = ((e._phase || 1) >= 3) ? 3 : 2;
+                                for (let s2 = 0; s2 < fArms; s2++) {
+                                    const a3 = e.spiralAngle + s2 * (Math.PI * 2 / fArms);
                                     spawnBullet(e, _bossDir.set(Math.sin(a3), 0, Math.cos(a3)), ENEMY_TYPES.fortress.damage);
+                                }
+                                if ((e._phase || 1) >= 3) { // counter-rotating set
+                                    for (let s3 = 0; s3 < 3; s3++) {
+                                        const a4 = -e.spiralAngle * 1.15 + s3 * (Math.PI * 2 / 3);
+                                        spawnBullet(e, _bossDir.set(Math.sin(a4), 0, Math.cos(a4)), ENEMY_TYPES.fortress.damage);
+                                    }
                                 }
                                 e.spiralShots = (e.spiralShots || 0) + 1;
                                 if (e.spiralShots >= 22) { e.spiralShots = 0; e.firing = false; e.restUntil = now + e.attackInterval; }
