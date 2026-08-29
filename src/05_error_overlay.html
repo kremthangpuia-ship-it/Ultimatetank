@@ -1,0 +1,13 @@
+
+<div id="ty-error-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;background:#dc2626;color:#fff;padding:10px;font-size:11px;z-index:99999;font-family:monospace;white-space:pre-wrap;max-height:40%;overflow:auto;"></div>
+<script>
+window.onerror = function(msg, src, line, col, err) {
+    var el = document.getElementById('ty-error-overlay');
+    if (el) { el.style.display = 'block'; el.textContent += ('ERROR: ' + msg + '\n  at ' + src + ':' + line + ':' + col + '\n'); }
+    return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+    var el = document.getElementById('ty-error-overlay');
+    if (el) { el.style.display = 'block'; el.textContent += ('PROMISE: ' + e.reason + '\n'); }
+});
+</script>

@@ -1,0 +1,13 @@
+<script>
+    // PWA: register the service worker so the game can be installed and played offline.
+    // Does nothing when the game is opened directly from the file system.
+    if ('serviceWorker' in navigator &&
+        (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+            // v20: no auto-reload on updates — the service worker is network-first for
+            // pages now, so a fresh open always gets the latest build, and an open
+            // session is never interrupted.
+        });
+    }
+</script>

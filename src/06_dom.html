@@ -1,0 +1,334 @@
+
+    <div id="game-container"></div>
+    <div id="input-layer"></div>
+    <div id="damage-overlay"></div>
+    <div id="heal-overlay"></div>
+    
+    <div id="hud-layer">
+        <div id="hud-top">
+            <div class="hud-strip">
+            <div class="hud-stack">
+                <div class="res-card res-trophy">
+                    <div class="res-body">
+                        <div class="res-lab">TROPHIES</div>
+                        <div class="res-val" id="score">0</div>
+                    </div>
+                </div>
+                <div class="res-card res-gold">
+                    <div class="res-body">
+                        <div class="res-lab">GOLD</div>
+                        <div class="res-val" id="coins">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="res-card res-lv">
+                    <div class="res-lab">LV</div>
+                    <div class="res-val" id="level">1</div>
+                </div>
+                <div class="res-card res-xp">
+                    <div class="res-row">
+                        <div class="res-lab">XP</div>
+                        <div class="res-val" id="xp-pct">0/100</div>
+                    </div>
+                    <div class="meter-track">
+                        <div class="xp-bar-fill" id="xp-bar"></div>
+                    </div>
+                </div>
+                <div class="res-card res-hp level-chip">
+                    <div class="res-row">
+                        <div class="res-lab">HP</div>
+                        <div class="res-val" id="hp-pct">100/100</div>
+                        <!-- v1.6: armor tag inline, only visible when armor > 0 -->
+                        <div id="armor-tag" style="display:none;margin-left:6px;font-size:10px;font-weight:700;color:#fb923c;white-space:nowrap">🛡 <span id="armor-pct">0/0</span></div>
+                    </div>
+                    <!-- Single track: HP bar underneath, armor overlay on top (transparent blue) -->
+                    <div class="meter-track" style="position:relative">
+                        <div class="health-bar-fill hp-bar-under" id="hp-bar"></div>
+                        <!-- Armor overlay: same full height as HP bar, transparent blue, sits on top -->
+                        <div id="armor-bar" style="display:none;position:absolute;inset:0 auto 0 0;height:100%;border-radius:8px;background:rgba(96,165,250,0.38);backdrop-filter:none;transition:width 0.25s;z-index:2;pointer-events:none"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="hud-status" class="hud-status">
+                <div id="hud-combo" class="hud-pill hidden">×1</div>
+                <div id="combo-chip"><span id="combo-count">×1</span></div>
+                <div id="buff-row" class="buff-row"></div>
+                <div id="stat-bar" class="stat-bar-hud">
+                    <span class="sbar-pill" id="hud-speed-pill">⚡<span id="hud-speed">100</span>%</span>
+                    <span class="sbar-pill">💥<span id="hud-damage">100</span>%</span>
+                </div>
+            </div>
+            <div id="diag-overlay" class="diag-overlay hidden"></div>
+            <div class="hud-corner">
+                <button id="btn-pause" class="pause-btn" aria-label="Pause game">⏸</button>
+                <div class="radar-bezel" id="radar-bezel-toggle" title="Tap to toggle minimap size" style="cursor:pointer;">
+                    <span class="radar-n">N</span>
+                    <canvas id="minimap" width="112" height="112"></canvas>
+                </div>
+            </div>
+            <div id="kill-feed"></div>
+        </div>
+        <div id="hud-bottom"></div>
+    </div>
+    <div id="vignette-overlay"></div>
+    <div id="dmg-direction"></div>
+
+    <div id="boss-banner"></div>
+    <div id="toast-stack"></div>
+    <div id="boss-bar"><div id="boss-bar-name">BOSS</div><div class="boss-bar-track"><div id="boss-bar-fill"></div></div></div>
+
+    <div class="biome-indicator" id="biome-name">Enchanted Forest</div>
+
+    <button id="btn-camera-float" aria-label="Camera mode">📷</button>
+    <div id="joystick-base">
+        <div id="joystick-knob"></div>
+    </div>
+
+    <div id="upgrade-notification">
+        <p id="upgrade-text" style="margin:0;opacity:0.95;font-size:13px;font-weight:700;letter-spacing:0.3px;">Speed increased!</p>
+    </div>
+
+    <div id="enemy-intro">
+        <strong id="enemy-name">Scout Tank</strong>
+        <p id="enemy-desc" style="margin:5px 0 0 0;opacity:0.7;font-size:12px;">Fast but fragile</p>
+    </div>
+
+    <div id="start-screen" class="screen hangar-screen">
+        <div class="hangar-bg" aria-hidden="true">
+            <div class="hangar-wall"></div>
+            <div class="hangar-consoles">
+                <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="hangar-floor"></div>
+            <div class="hangar-fog"></div>
+        </div>
+        <div class="home-wrap">
+            <header class="home-hero command-hangar">
+                <div class="home-logo tank-mark"><div class="te-hero-scan" aria-hidden="true"></div><canvas id="menu-tank-view" width="680" height="400" aria-label="Equipped player tank in the command hangar"></canvas></div>
+                <div class="home-titles">
+                    <h1>TankGameAi</h1>
+                    <h2>CONQUER EVERY BIOME</h2>
+                </div>
+            </header>
+            <div class="home-stats">
+                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">BEST • CASUAL</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">BEST • LEVELS</span></div>
+                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label"><span class="coin-glyph">$</span> COINS</span></div>
+            </div>
+            <div class="home-actions">
+                <button class="btn home-btn home-btn-casual" id="btn-casual">
+                    <span class="hb-ico">▶</span>
+                    <span class="hb-copy"><span class="hb-title">CASUAL</span><span class="hb-sub">Quick Game</span></span>
+                </button>
+                <button class="btn home-btn home-btn-levels mode-btn" id="btn-levels">
+                    <span class="rivet r1"></span><span class="rivet r2"></span><span class="rivet r3"></span><span class="rivet r4"></span>
+                    <span class="hb-ico">🎯</span>
+                    <span class="hb-copy"><span class="hb-title">LEVEL MODE</span><span class="hb-sub">Progression Journey</span></span>
+                </button>
+                <button class="btn home-btn home-btn-armory" id="btn-shop-home">
+                    <span class="arm-grip gL"></span><span class="arm-grip gR"></span>
+                    <span class="hb-ico">🛒</span>
+                    <span class="hb-copy"><span class="hb-title">ARMORY</span><span class="hb-sub">Upgrades &amp; Customization</span></span>
+                </button>
+                <button class="btn home-btn home-btn-awards" id="btn-awards">
+                    <span class="hb-ico">🏆</span>
+                    <span class="hb-copy"><span class="hb-title">AWARDS</span><span class="hb-sub">Achievements &amp; Leaderboards</span></span>
+                </button>
+                <button class="btn home-btn" id="btn-settings-home">
+                    <span class="hb-ico">⚙</span>
+                    <span class="hb-copy"><span class="hb-title">SETTINGS</span><span class="hb-sub">Controls &amp; Accessibility</span></span>
+                </button>
+                <button class="btn home-btn" id="btn-bossrush" style="opacity:0.42;pointer-events:none;" title="Kill 5 bosses or reach level 5 to unlock">
+                    <span class="hb-ico">🔒</span>
+                    <span class="hb-copy"><span class="hb-title">BOSS RUSH</span><span class="hb-sub" id="bossrush-sub">Kill 5 bosses to unlock</span></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="casual-screen" class="screen hidden">
+        <div class="settings-panel" style="width: min(94vw, 480px);">
+            <div class="settings-title">▶ Casual</div>
+            <div class="settings-subtitle">Endless climb — difficulty rises forever. Best score: <b id="casual-best-label">0</b></div>
+            <button class="btn" id="btn-casual-new" style="padding: 14px 40px; font-size: 15px;">▶ &nbsp;New Casual Run</button>
+            <div class="cfg-label" style="margin-top:16px;">💾 Saved runs <span id="casual-save-count"></span></div>
+            <div id="casual-saves" style="max-height: 40vh; overflow-y: auto;"></div>
+            <button class="hud-icon-btn wide" id="btn-casual-back" style="margin-top: 12px; width: 100%;">Back</button>
+        </div>
+    </div>
+
+    <div id="save-dialog" class="hidden">
+        <div class="settings-panel" style="width: min(92vw, 380px);">
+            <div class="settings-title" style="font-size:1.3rem;">💾 Save run</div>
+            <div class="settings-subtitle" id="save-dialog-info"></div>
+            <input type="text" id="save-name-input" maxlength="24" placeholder="Save name…" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.07); color:#fff; font-size:15px; outline:none;">
+            <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                <button class="btn" id="btn-save-overwrite" style="margin:0; flex:1; padding:12px 0; font-size:14px; display:none; min-width:0;">Overwrite</button>
+                <button class="btn" id="btn-save-confirm" style="margin:0; flex:1; padding:12px 0; font-size:14px; min-width:0;">💾 Save</button>
+                <button class="hud-icon-btn wide" id="btn-save-cancel" style="flex:1;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="awards-screen" class="screen hidden">
+        <div class="settings-panel" style="width: min(94vw, 500px);">
+            <div class="settings-title">🏆 Awards</div>
+            <div class="settings-subtitle" id="awards-sub"></div>
+            <div class="cfg-label">🎖️ Achievements</div>
+            <div id="ach-list" style="max-height: 34vh; overflow-y: auto;"></div>
+            <button class="hud-icon-btn wide" id="btn-awards-back" style="margin-top: 12px; width: 100%;">Back</button>
+        </div>
+    </div>
+
+    <div id="levels-screen" class="screen hidden">
+        <div class="settings-panel" style="width: min(94vw, 480px);">
+            <div class="settings-title">🎯 Level Mode</div>
+            <div class="settings-subtitle">Set the battle conditions</div>
+            <div class="cfg-label">Enemy density</div>
+            <div class="cfg-row" id="cfg-density">
+                <button class="cfg-chip" data-v="6">Light</button>
+                <button class="cfg-chip sel" data-v="10">Normal</button>
+                <button class="cfg-chip" data-v="14">Heavy</button>
+                <button class="cfg-chip" data-v="18">Chaos</button>
+            </div>
+            <div class="cfg-label">Difficulty</div>
+            <div class="cfg-row" id="cfg-difficulty">
+                <button class="cfg-chip" data-v="easy">Easy</button>
+                <button class="cfg-chip sel" data-v="normal">Normal</button>
+                <button class="cfg-chip" data-v="hard">Hard</button>
+                <button class="cfg-chip" data-v="nightmare">Nightmare</button>
+            </div>
+            <div class="cfg-label">Starting level <span id="cfg-level-val">1</span> <span id="cfg-level-cap" style="text-transform:none; letter-spacing:0; font-weight:500;"></span></div>
+            <input type="range" id="cfg-level" min="1" max="30" value="1" step="1">
+            <button class="btn" id="btn-levels-start" style="margin-top:16px;">▶ &nbsp;Deploy</button>
+            <button class="hud-icon-btn wide" id="btn-levels-back" style="margin-top:10px; width:100%;">Back</button>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="screen hidden">
+        <h1>💀 Defeated</h1>
+        <h2>Score: <span id="final-score">0</span> • Level: <span id="final-level">1</span></h2>
+        <div class="run-stats">
+            <div class="run-stat"><span class="run-num" id="final-kills">0</span><span class="run-label">Kills</span></div>
+            <div class="run-stat"><span class="run-num" id="final-time">0:00</span><span class="run-label">Survived</span></div>
+            <div class="run-stat"><span class="run-num" id="final-coins">0</span><span class="run-label">Coins earned</span></div>
+            <div class="run-stat"><span class="run-num" id="final-best">0</span><span class="run-label">Best score</span></div>
+            <div class="run-stat"><span class="run-num" id="final-bosses">0</span><span class="run-label">Bosses Killed</span></div>
+            <div class="run-stat"><span class="run-num" id="final-combo">0</span><span class="run-label">Best Combo</span></div>
+            <div class="run-stat"><span class="run-num" id="final-biome" style="font-size:13px">—</span><span class="run-label">Biome Reached</span></div>
+            <div class="run-stat"><span class="run-num" id="final-evos">0</span><span class="run-label">Evolutions</span></div>
+        </div>
+        <div class="pause-build death-build">
+            <div class="pb-title">YOUR BUILD</div>
+            <div id="death-kit" class="kit-list"></div>
+        <div id="death-build-phase2" class="build-phase2"></div>
+        </div>
+        <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
+        <div id="death-save-note" class="hidden" style="color:rgba(253,230,138,0.9);font-size:13px;margin:6px 18px 10px;text-align:center;"></div>
+        <button class="btn btn-restart" id="btn-restart">Try Again</button>
+        <button class="btn" id="btn-continue-run">✨ Revive for 💰 <span id="continue-cost">300</span>?</button>
+        <button class="btn" id="btn-go-home">⌂ Back to Home</button>
+        <button class="btn" id="btn-shop">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
+    </div>
+
+    <div id="shop-screen" class="screen hidden">
+        <div class="settings-panel" style="width: min(94vw, 480px);">
+            <div class="settings-title">🛒 Armory</div>
+            <div class="settings-subtitle">Spend coins here — endless tracks get expensive fast · Balance: 💰 <span id="shop-coins">0</span></div>
+            <div id="shop-items"></div>
+            <button class="hud-icon-btn wide" id="btn-shop-close" style="margin-top: 14px; width: 100%;">Close</button>
+        </div>
+    </div>
+
+
+
+    <div id="settings-screen" class="screen hidden">
+        <div class="settings-panel">
+            <div class="settings-title">Game Settings</div>
+            <div class="settings-subtitle">Mobile HUD controls</div>
+            <div class="settings-grid">
+                <button class="hud-icon-btn wide" id="toggle-sound-panel">Sound: On</button>
+                <button class="hud-icon-btn wide" id="toggle-music-panel">Music: On</button>
+                <button class="hud-icon-btn wide" id="toggle-quality-panel">Graphics: Auto</button>
+                <button class="hud-icon-btn wide" id="toggle-camera-panel">Camera: Follow</button>
+                <button class="hud-icon-btn wide" id="toggle-assist-panel">Assist: On</button>
+                <button class="hud-icon-btn wide" id="toggle-haptics-panel">Haptics: On</button>
+                <button class="hud-icon-btn wide" id="toggle-lefty-panel">Hands: Right</button>
+                <button class="hud-icon-btn wide" id="toggle-shake-panel">Shake: Full</button>
+                <button class="hud-icon-btn wide" id="toggle-flash-panel">Flash: Full</button>
+                <button class="hud-icon-btn wide" id="toggle-dmgnums-panel">Damage Numbers: On</button>
+                <button class="hud-icon-btn wide" id="toggle-combatpopups-panel">Combat Popups: On</button>
+                <button class="hud-icon-btn wide" id="toggle-fps-panel">Frame Rate: 60 FPS</button>
+                <button class="hud-icon-btn wide" id="btn-reset-data" style="color:#fca5a5;">Reset All Data</button>
+                <button class="hud-icon-btn wide" id="close-settings-panel">Close</button>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Camera</div>
+                <div class="settings-note">Follow = close combat. Wide = more view.</div>
+                <div class="settings-label">Control assist</div>
+                <div class="settings-note">Assist keeps auto-aim sticky and input easy.</div>
+                <div class="settings-label">Sound</div>
+                <div class="settings-note">Beep UI, fire, hit, and pause actions.</div>
+                <div class="settings-label">Phone comfort</div>
+                <div class="settings-note">Haptics = vibration. Hands = swap move/fire sides. Shake/Flash = less motion and red flash.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- v1.4: Rebuilt pause screen — clean card list, evo section, action buttons -->
+    <div id="pause-screen" class="screen hidden">
+        <div class="pause-wrap">
+            <!-- Header row -->
+            <div class="pause-header">
+                <span class="pause-title">⏸ PAUSED</span>
+                <span id="pause-revives" class="pause-revive-badge">✨ Revives: <b id="pause-revive-count">0</b></span>
+            </div>
+
+            <!-- Stat grid -->
+            <div class="pause-stat-grid">
+                <div class="psg-cell"><div class="psg-icon">❤️</div><div class="psg-label">Max HP</div><div class="psg-val" id="stat-maxhp">100</div></div>
+                <div class="psg-cell"><div class="psg-icon">🛡️</div><div class="psg-label">Shield HP</div><div class="psg-val" id="stat-armor" style="font-size:11px">—</div></div>
+                <div class="psg-cell"><div class="psg-icon">🔄</div><div class="psg-label">Regen</div><div class="psg-val"><span id="stat-regen">0</span><small>/s</small></div></div>
+                <div class="psg-cell"><div class="psg-icon">💗</div><div class="psg-label">Heal/Kill</div><div class="psg-val" id="stat-healkill" style="font-size:11px">—</div></div>
+                <div class="psg-cell"><div class="psg-icon">🎯</div><div class="psg-label">Crit</div><div class="psg-val"><span id="stat-crit">0</span><small>%</small></div></div>
+                <div class="psg-cell"><div class="psg-icon">⚡</div><div class="psg-label">Speed</div><div class="psg-val"><span id="stat-speed">100</span><small>%</small></div></div>
+                <div class="psg-cell"><div class="psg-icon">💥</div><div class="psg-label">Damage</div><div class="psg-val"><span id="stat-damage">100</span><small>%</small></div></div>
+                <div class="psg-cell"><div class="psg-icon">🔥</div><div class="psg-label">Fire Rate</div><div class="psg-val"><span id="stat-firerate">100</span><small>%↑faster</small></div></div>
+                <div class="psg-cell"><div class="psg-icon">🔱</div><div class="psg-label">Multishot</div><div class="psg-val" id="stat-multishot">0</div></div>
+                <div class="psg-cell"><div class="psg-icon">🔩</div><div class="psg-label">Pierce</div><div class="psg-val" id="stat-pierce">0</div></div>
+            </div>
+
+            <!-- Upgrade card list (deduplicated, with count) -->
+            <div class="pause-section-label">UPGRADES PICKED</div>
+            <div id="pause-kit" class="pause-kit-grid"></div>
+
+            <!-- Evolution section -->
+            <div class="pause-section-label">EVOLUTIONS
+                <button class="evo-detail-btn" id="btn-evo-detail">View Details ›</button>
+            </div>
+            <div id="pause-evo-list" class="pause-evo-list"></div>
+
+            <!-- Hidden for legacy compatibility -->
+            <div id="pause-build-phase2" class="build-phase2" style="display:none"></div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="pause-actions">
+            <button class="btn" id="btn-resume">▶ Resume</button>
+            <button class="btn" id="btn-pause-settings">⚙ Settings</button>
+            <button class="btn" id="btn-save-run">💾 Save</button>
+            <button class="btn btn-restart" id="btn-quit">⌂ Quit</button>
+        </div>
+    </div>
+
+    <!-- v1.4: Evolution Detail Screen -->
+    <div id="evo-detail-screen" class="screen hidden">
+        <div class="evo-detail-wrap">
+            <div class="evo-detail-header">
+                <button class="evo-back-btn" id="btn-evo-back">‹ Back</button>
+                <span class="evo-detail-title">⚗ EVOLUTION LAB</span>
+            </div>
+            <div id="evo-detail-body" class="evo-detail-body"></div>
+        </div>
+    </div>
+
