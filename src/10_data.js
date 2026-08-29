@@ -444,7 +444,9 @@
             playerStats: { speed: 100, damage: 100, fireRate: 100, armor: 0, regen: 0, maxHp: 100, multishot: 0 },
             enemiesIntroduced: new Set(),
             targetEnemy: null, // Added for sticky auto-aim
-            runCards: [], runCardsObj: {}, evolutions: []
+            runCards: [], runCardsObj: {}, evolutions: [],
+            // Q062: Workshop ranks. Persistent across runs; applied fresh each startGame().
+            tech: { armor: 0, speed: 0, shield: 0, reroll: 0, damage: 0 }
         };
 
         let audioCtx = null;

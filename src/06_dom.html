@@ -235,7 +235,16 @@
         <div class="settings-panel" style="width: min(94vw, 480px);">
             <div class="settings-title">🛒 Armory</div>
             <div class="settings-subtitle">Spend coins here — endless tracks get expensive fast · Balance: 💰 <span id="shop-coins">0</span></div>
+            <!-- Q062: the Armory and the Workshop are separate tabs, deliberately not
+                 folded together. The Armory sells big permanent stat steps; the Workshop
+                 sells small cheap ranks plus loadout perks. They answer different
+                 fantasies, so merging the lists would make both harder to read. -->
+            <div id="shop-tabs" style="display:flex;gap:8px;margin:10px 0 12px;">
+                <button class="hud-icon-btn" id="tab-armory" style="flex:1;">🛒 Armory</button>
+                <button class="hud-icon-btn" id="tab-workshop" style="flex:1;">🔧 Workshop</button>
+            </div>
             <div id="shop-items"></div>
+            <div id="tech-items" class="hidden"></div>
             <button class="hud-icon-btn wide" id="btn-shop-close" style="margin-top: 14px; width: 100%;">Close</button>
         </div>
     </div>

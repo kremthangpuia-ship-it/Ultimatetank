@@ -35,7 +35,8 @@ function saveGame(){ // (uses the `store` defined at the top of the script)
             fpsMode: state.fpsMode || 60,
             levels: { best: state.bestLevels || 0 },
             progress: { maxCleared: state.maxCleared || 1 }, // v13: level-select unlock
-            consumables: state.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 } // v11/v27.3
+            consumables: state.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 }, // v11/v27.3
+            tech: state.tech || { armor: 0, speed: 0, shield: 0, reroll: 0, damage: 0 } // Q116
         }));
     } catch(e) { /* storage unavailable (private mode etc.) — ignore */ }
 }
@@ -96,9 +97,21 @@ function sanitizeSave(d) {
     const defConsumables = { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 };
     const c = obj(d.consumables);
 
+    const t = obj(d.tech);
+    // Q116: Workshop ranks are validated against the tree, so a hand-edited save cannot
+    // grant a rank above maxLevel or a negative one.
+    const techOut = {};
+    if (typeof TECH_TREE !== 'undefined') {
+        TECH_TREE.forEach(node => {
+            const lv = num(t[node.id], 0, 0);
+            techOut[node.id] = Math.min(lv, node.maxLevel);
+        });
+    }
+
     return {
         v: SAVE_VERSION,
         coins: num(d.coins, 0, 0),
+        tech: techOut,
         meta: obj(d.meta),
         skins: {
             owned: arr(d.skins && d.skins.owned).filter(s => typeof s === 'string'),
@@ -149,6 +162,7 @@ function loadGame(){
         state.bestCasual = (d.casual && d.casual.best) || 0;
         state.bestLevels = (d.levels && d.levels.best) || 0;
         state.consumables = d.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 }; // v11/v27.3
+        state.tech = d.tech;   // Q116: already validated by sanitizeSave()
         state.stats = d.stats || null; // v23
         state.achUnlocked = d.achUnlocked || [];
         state.daily = d.daily || null;

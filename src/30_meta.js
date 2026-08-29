@@ -4,7 +4,9 @@
             { id:'spd',    icon:'⚡', name:'Turbine Engine',     desc:'+6% base speed (per level)',       base:250,  growth:1.5, max:8 },
             { id:'armor',  icon:'🛡️', name:'Spacer Plating',     desc:'+4 starting armor (per level)',    base:350,  growth:1.5, max:6 },
             { id:'regen',  icon:'🔄', name:'Repair Kit',         desc:'+1 HP/s regen (per level)',        base:400,  growth:1.5, max:6 },
-            { id:'revive', icon:'✨', name:'Second Wind',        desc:'Revive once/run — lvl2 revives at 75% HP', base:1500, growth:4.0, max:2 },
+            // Q062/Q063: 'Second Wind' (the once-per-run auto-revive) is removed entirely.
+            // Reviving is determined by coins at the death screen, so a purchasable
+            // auto-revive was a second, competing answer to the same question.
             { id:'cards',  icon:'🃏', name:'Extra Choice',       desc:'+1 reroll each level-up (still pick only one card)', base:2500, growth:3.2, max:2 },
             // v26: endless coin sinks — these never max out
             { id:'dmg_inf', icon:'🔧', name:'Master Gunsmith',   desc:'+1% base damage (UNLIMITED — price rises fast)',   base:500, growth:1.34, max:Infinity },
@@ -57,6 +59,18 @@
             { id:'void',    name:'Void Walker',   color:0x8b5cf6, cost:7500,  archetype:'Tech',        arch:{ maxHp:0,  damage:15,  speed:0,   armor:0,  regen:0,  crit:10 }, archdesc:'+15% DMG, +10% Crit — crit build synergy.' },
             { id:'gold',    name:'24k Commander', color:0xfcd34d, cost:12000, archetype:'Sovereign',   arch:{ maxHp:25, damage:10,  speed:5,   armor:5,  regen:1   }, archdesc:'+25 HP, +10 DMG, +5 Armor — all-around elite.' },
         ];
+        // Q062/Q116: the Workshop tree, ported from Yt03. These ranks are deliberately
+        // small and cheap next to the Armory's big steps, so the two shops complement
+        // rather than duplicate each other: the Armory is "get substantially stronger",
+        // the Workshop is "shave the edges and unlock a perk".
+        const TECH_TREE = [
+            { id: 'armor',  name: 'Reinforced Hull Armor', icon: '🛡️', maxLevel: 5, baseCost: 150, stepCost: 150, desc: '+2 Armor per rank' },
+            { id: 'speed',  name: 'Turbocharger Unit',     icon: '⚡', maxLevel: 5, baseCost: 150, stepCost: 150, desc: '+2% Movement speed per rank' },
+            { id: 'shield', name: 'Auxiliary Shield Gen',  icon: '🌐', maxLevel: 1, baseCost: 600, stepCost: 0,   desc: 'Start every run with 1 active Shield' },
+            { id: 'reroll', name: 'Tactical Reroll Cache', icon: '🎲', maxLevel: 3, baseCost: 250, stepCost: 200, desc: '+1 Free card reroll per rank every run' },
+            { id: 'damage', name: 'High-Caliber Breach',   icon: '💥', maxLevel: 5, baseCost: 150, stepCost: 150, desc: '+2% Base shell damage per rank' }
+        ];
+
         const CONSUMABLES = [ // v27: next-run boosts — unlimited, each extra copy costs more
             { id:'lucky',     icon:'🍀', name:'Lucky Charm',  desc:'+20% coins next run',                 base:400, cycle:true },
             { id:'headstart', icon:'🚀', name:'Head Start',   desc:'Next run starts with +1 free card',   base:550, cycle:true },
@@ -601,7 +615,81 @@
         function closeSaveDialog() { document.getElementById('save-dialog').classList.add('hidden'); }
 
         let shopReturnTo = 'game-over-screen'; // v7: the Armory remembers where it was opened from
+        // Q062: Workshop cost for the next rank. Linear step, so the price ladder is
+        // predictable next to the Armory's exponential one.
+        function techCost(node) {
+            const cur = (state.tech && state.tech[node.id]) || 0;
+            return node.baseCost + cur * node.stepCost;
+        }
+
+        function renderTechTree() {
+            const wrap = document.getElementById('tech-items');
+            if (!wrap) return;
+            state.tech = state.tech || { armor: 0, speed: 0, shield: 0, reroll: 0, damage: 0 };
+            const coins = state.coins || 0;
+            wrap.innerHTML = TECH_TREE.map(t => {
+                const lvl = state.tech[t.id] || 0;
+                const maxed = lvl >= t.maxLevel;
+                const cost = techCost(t);
+                const afford = coins >= cost;
+                return '<div class="shop-row" style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,0.08);">'
+                    + '<div style="font-size:20px;">' + t.icon + '</div>'
+                    + '<div style="flex:1;min-width:0;">'
+                    +   '<div style="font-weight:600;">' + t.name + ' <span style="opacity:.6;font-weight:400;">' + lvl + '/' + t.maxLevel + '</span></div>'
+                    +   '<div style="font-size:11px;opacity:.65;">' + t.desc + '</div>'
+                    + '</div>'
+                    + '<button class="hud-icon-btn" data-tech="' + t.id + '"'
+                    +   (maxed || !afford ? ' disabled style="opacity:.45;"' : '') + '>'
+                    +   (maxed ? 'MAX' : ('\ud83d\udcb0 ' + cost)) + '</button>'
+                    + '</div>';
+            }).join('');
+            wrap.querySelectorAll('[data-tech]').forEach(btn => {
+                btn.addEventListener('click', () => buyTech(btn.getAttribute('data-tech')));
+            });
+        }
+
+        // Q062: purchase one Workshop rank. Bounded by maxLevel and by the balance, and it
+        // persists immediately so a closed tab can never cost the player a purchase.
+        function buyTech(id) {
+            const node = TECH_TREE.find(t => t.id === id);
+            if (!node) return false;
+            state.tech = state.tech || { armor: 0, speed: 0, shield: 0, reroll: 0, damage: 0 };
+            const lvl = state.tech[id] || 0;
+            if (lvl >= node.maxLevel) return false;
+            const cost = techCost(node);
+            if ((state.coins || 0) < cost) return false;
+            state.coins -= cost;
+            state.tech[id] = lvl + 1;
+            try { playTone({ frequency: 880, duration: 0.12, type: 'triangle' }); } catch (e) {}
+            try { saveGame(); } catch (e) {}
+            try { renderTechTree(); renderShop(); updateHomeStats(); } catch (e) {}
+            return true;
+        }
+
+        // Q062: Armory / Workshop tab switching. Wired once; renderShop() calls it because
+        // that is the single entry point for opening the shop.
+        function wireShopTabs() {
+            const ta = document.getElementById('tab-armory');
+            const tw = document.getElementById('tab-workshop');
+            const items = document.getElementById('shop-items');
+            const tech = document.getElementById('tech-items');
+            if (!ta || !tw || !items || !tech || ta.dataset.wired) return;
+            ta.dataset.wired = '1';
+            const show = (which) => {
+                const armory = which === 'armory';
+                items.classList.toggle('hidden', !armory);
+                tech.classList.toggle('hidden', armory);
+                ta.classList.toggle('active', armory);
+                tw.classList.toggle('active', !armory);
+                if (!armory) renderTechTree();
+            };
+            ta.addEventListener('click', () => show('armory'));
+            tw.addEventListener('click', () => show('workshop'));
+            show('armory');
+        }
+
         function renderShop() {
+            try { wireShopTabs(); } catch (e) {}
             const wrap = document.getElementById('shop-items');
             wrap.innerHTML = '';
             document.getElementById('shop-coins').textContent = state.coins || 0;

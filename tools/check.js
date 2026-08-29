@@ -575,6 +575,42 @@ setTimeout(() => {
   check('B16 (Q038) six bespoke phase fights, generic enrage fallback, summon honours count', b16ok,
         r16.__err ? r16.__err : `bespoke ${JSON.stringify(r16.bespoke)}, summon(3)=${r16.summon3}, summon()=${r16.summonDefault}, all six banners=${sixBanners}`);
 
+  // --- behaviour 17 (Q062/Q063/Q116): Workshop tree, Second Wind gone, ranks persist ---
+  const b17 = ev(`(function(){
+    try {
+      var out = {};
+      out.nodes = TECH_TREE.length;
+      out.ids = TECH_TREE.map(function(t){ return t.id; });
+      // Q062/Q063: Second Wind must be gone from the Armory
+      out.secondWind = SHOP_ITEMS.some(function(i){ return i.id === 'revive'; });
+      // cost ladder: armor base 150 step 150 -> 150, 300, 450, 600, 750
+      state.tech = { armor: 0, speed: 0, shield: 0, reroll: 0, damage: 0 };
+      out.armorCosts = [0,1,2,3,4].map(function(l){ state.tech.armor = l; return techCost(TECH_TREE[0]); });
+      // buyTech respects balance and maxLevel
+      state.coins = 1000; state.tech.armor = 0;
+      out.bought = buyTech('armor');
+      out.coinsAfter = state.coins;                      // 1000 - 150
+      out.levelAfter = state.tech.armor;
+      state.coins = 0; out.brokeRefused = buyTech('armor');
+      state.coins = 999999; state.tech.shield = 1;       // shield maxLevel is 1
+      out.maxedRefused = buyTech('shield');
+      // Q116: a hand-edited save cannot exceed maxLevel
+      var san = sanitizeSave(migrateSave({ v: 4, tech: { armor: 99, speed: -5, bogus: 7 } }));
+      out.sanitized = san.tech;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r17 = parsed(b17);
+  const b17ok = !r17.__err
+    && r17.nodes === 5 && r17.ids.join(',') === 'armor,speed,shield,reroll,damage'
+    && r17.secondWind === false
+    && JSON.stringify(r17.armorCosts) === JSON.stringify([150,300,450,600,750])
+    && r17.bought === true && r17.coinsAfter === 850 && r17.levelAfter === 1
+    && r17.brokeRefused === false && r17.maxedRefused === false
+    && r17.sanitized.armor === 5 && r17.sanitized.speed === 0 && !('bogus' in r17.sanitized);
+  check('B17 (Q062/63/116) Workshop tree works, Second Wind removed, ranks clamped on load', b17ok,
+        r17.__err ? r17.__err : JSON.stringify(r17));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

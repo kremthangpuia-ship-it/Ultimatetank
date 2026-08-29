@@ -240,6 +240,22 @@
             }
             // v1.5: Armor shield pool — starts full at run start (or resume)
             // Fix 5: Aegis gives 20 base armor pool even if player has no armor cards
+            // Q062/Q116: Workshop ranks, applied fresh each run. This must happen before
+            // the armour pool is derived below, since armor ranks change the pool size.
+            // A resumed run already carries these inside its saved playerStats, so they are
+            // only applied on a fresh start.
+            if (!resume) {
+                const tech = state.tech || {};
+                state.playerStats.armor  += (tech.armor  || 0) * 2;
+                state.playerStats.speed  += (tech.speed  || 0) * 2;
+                state.playerStats.damage += (tech.damage || 0) * 2;
+                if (tech.shield) {
+                    state.playerStats.shield = Math.max(state.playerStats.shield || 0, 1);
+                    state.shieldUp = true;
+                }
+                state.runRerolls = (state.runRerolls || 0) + (tech.reroll || 0);
+            }
+
             // Q018: Aegis Kit grants a base pool when you own no armour cards, so the bar
             // and the recharge actually have something to work with. Only on a fresh run —
             // Yt03's guard, so resuming a save is never overwritten by the consumable.
