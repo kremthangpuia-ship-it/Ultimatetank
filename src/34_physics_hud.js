@@ -513,7 +513,9 @@
                             createExplosion(b.group.position, 8, 0xaaaaaa, col.type);
                             // v19: destructible cover — soak hits, then shatter
                             if (col.hp !== undefined && !col.dead) {
-                                col.hp -= b.group.userData.damage;
+                                // Q047: charge the normalised pool, scaled by how hard this
+                                // shell hits relative to the player's current shell damage
+                                col.hp -= coverHitCost(b.group.userData.damage);
                                 if (col.hp <= 0) {
                                     const ck = chunkKey(Math.floor(col.x / CHUNK), Math.floor(col.z / CHUNK));
                                     const ch2 = envChunks.get(ck);

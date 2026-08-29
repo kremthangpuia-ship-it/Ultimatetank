@@ -146,7 +146,7 @@
 
         // v6(C): BOSSES — every 5th level one arrives; three kinds rotate
         const BOSS_KINDS = [ // v24: roster of six, rotating
-            { type: 'warlord',  interval: 3.2 },
+            { type: 'warlord',  interval: 6.4 },   // Q039: doubled from 3.2 (Yt03's nerf)
             { type: 'tempest',  interval: 3.0 },
             { type: 'colossus', interval: 3.8 },
             { type: 'titan',    interval: 4.6 },

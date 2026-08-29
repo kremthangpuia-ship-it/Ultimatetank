@@ -256,6 +256,33 @@
             runChunkTasks(2);
         }
 
+        // ---------------------------------------------------------------------------
+        // Q047: DESTRUCTIBLE COVER — sized in "player shells", not raw hit points.
+        // The legacy builds gave a tree 4..10 HP and a rock 2..7 HP, fixed at chunk-build
+        // time and never scaled. Early on cover was unbreakable; by level 30 it evaporated
+        // in a single shot. Both readings are wrong, and chunk-build time is the wrong
+        // moment to decide anyway — a prop built at level 1 may not be reached until 30.
+        //
+        // So a prop carries a normalised pool of CONFIG.cover.hitsToBreak and each impact
+        // charges it in proportion to the incoming damage against the player's CURRENT
+        // shell damage, evaluated at the moment of impact. The result is level-independent
+        // by construction: exactly two player shells break any tree or rock, at any level.
+        // Enemy shells charge the same pool, so a weaker enemy takes longer to clear cover
+        // — which is the second half of the decision.
+        // ---------------------------------------------------------------------------
+        function coverReferenceDamage() {
+            const pct = ((state.playerStats && state.playerStats.damage) || 100) / 100;
+            return Math.max(1, CONFIG.baseDamage * pct);
+        }
+        function coverHitCost(incomingDamage) {
+            // One player shell costs exactly 1 unit, and the pool is hitsToBreak (2) units,
+            // so exactly two player shells break any prop. A shell that hits twice as hard
+            // as the reference costs 2 and breaks it in one — which is the intended
+            // behaviour, since "two hits" is measured against the player's own current
+            // output. Enemy shells score below 1, so weaker enemies need more hits.
+            return (incomingDamage || 0) / coverReferenceDamage();
+        }
+
         function destroyDestructible(chunk, dst) { // v19: cover shatters — sightlines open up
             if (dst.dead) return;
             dst.dead = true;
@@ -343,7 +370,8 @@
                 partsGeo.push({ key: part.matKey, geo: part.geo });
             }
             // v19: destructible cover — trees soak hits (HP by size), then shatter
-            const treeHp = Math.round(4 + scale * 6);
+            // Q047: normalised pool — CONFIG.cover.hitsToBreak player shells, any level
+            const treeHp = CONFIG.cover.hitsToBreak;
             const treeDst = { x, z, r: 1.5 * scale, type: 'tree', hp: treeHp, maxHp: treeHp, geos: partsGeo, dead: false, y: terrainY };
             chunk.destructibles.push(treeDst);
             chunk.colliders.push(treeDst);
@@ -377,7 +405,7 @@
             rockGeo.applyMatrix4(m4);
             put('rock', rockMat, rockGeo, true, true);
             // v19: destructible rock — toughness scales with size
-            const rockHp = Math.round(2 + size * 2.4);
+            const rockHp = CONFIG.cover.hitsToBreak;   // Q047: normalised, see tree above
             const rockDst = { x, z, r: size, type: 'rock', hp: rockHp, maxHp: rockHp, geos: [{ key: 'rock', geo: rockGeo }], dead: false, y: terrainY };
             chunk.destructibles.push(rockDst);
             chunk.colliders.push(rockDst);

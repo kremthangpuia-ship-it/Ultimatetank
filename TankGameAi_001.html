@@ -2443,7 +2443,10 @@ window.addEventListener('unhandledrejection', function(e) {
             shieldbearer: { color: 0x93c5fd, speed: 28, life: 1.50, style: 'bolt',  home: 0.00 },
             minelayer:    { color: 0xa3e635, speed: 26, life: 1.35, style: 'spark', home: 0.00 },
             commander:    { color: 0xfacc15, speed: 32, life: 1.45, style: 'bolt',  home: 0.00 },
-            warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
+            // Q039: the first boss teaches patterns rather than deleting new players.
+            //            Shell speed halved 36 -> 18, matching Yt03; Yt02 shipped the
+            //            unhalved value, which its own notes did not mention.
+            warlord:    { color: 0xf87171, speed: 18, life: 1.90, style: 'slug',  home: 0.22 },
             colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
             nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
             titan:      { color: 0x93c5fd, speed: 30, life: 1.80, style: 'slug',  home: 0.18 },
@@ -2534,6 +2537,11 @@ window.addEventListener('unhandledrejection', function(e) {
             // makes armour a tactical resource rather than an infinite second health bar.
             // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
             // (Q020) keeps working unchanged.
+            // Q047: destructible cover, measured in player shells rather than raw HP so it
+            // stays meaningful at every level. See coverHitCost() in 24_chunks.js.
+            cover: {
+                hitsToBreak: 2      // exactly two player shells break any tree or rock
+            },
             armor: {
                 regenDelay: 3,      // seconds without damage before recharge starts
                 regenPerSec: 0.10,  // fraction of the pool refilled per second
@@ -3883,6 +3891,33 @@ window.addEventListener('unhandledrejection', function(e) {
             runChunkTasks(2);
         }
 
+        // ---------------------------------------------------------------------------
+        // Q047: DESTRUCTIBLE COVER — sized in "player shells", not raw hit points.
+        // The legacy builds gave a tree 4..10 HP and a rock 2..7 HP, fixed at chunk-build
+        // time and never scaled. Early on cover was unbreakable; by level 30 it evaporated
+        // in a single shot. Both readings are wrong, and chunk-build time is the wrong
+        // moment to decide anyway — a prop built at level 1 may not be reached until 30.
+        //
+        // So a prop carries a normalised pool of CONFIG.cover.hitsToBreak and each impact
+        // charges it in proportion to the incoming damage against the player's CURRENT
+        // shell damage, evaluated at the moment of impact. The result is level-independent
+        // by construction: exactly two player shells break any tree or rock, at any level.
+        // Enemy shells charge the same pool, so a weaker enemy takes longer to clear cover
+        // — which is the second half of the decision.
+        // ---------------------------------------------------------------------------
+        function coverReferenceDamage() {
+            const pct = ((state.playerStats && state.playerStats.damage) || 100) / 100;
+            return Math.max(1, CONFIG.baseDamage * pct);
+        }
+        function coverHitCost(incomingDamage) {
+            // One player shell costs exactly 1 unit, and the pool is hitsToBreak (2) units,
+            // so exactly two player shells break any prop. A shell that hits twice as hard
+            // as the reference costs 2 and breaks it in one — which is the intended
+            // behaviour, since "two hits" is measured against the player's own current
+            // output. Enemy shells score below 1, so weaker enemies need more hits.
+            return (incomingDamage || 0) / coverReferenceDamage();
+        }
+
         function destroyDestructible(chunk, dst) { // v19: cover shatters — sightlines open up
             if (dst.dead) return;
             dst.dead = true;
@@ -3970,7 +4005,8 @@ window.addEventListener('unhandledrejection', function(e) {
                 partsGeo.push({ key: part.matKey, geo: part.geo });
             }
             // v19: destructible cover — trees soak hits (HP by size), then shatter
-            const treeHp = Math.round(4 + scale * 6);
+            // Q047: normalised pool — CONFIG.cover.hitsToBreak player shells, any level
+            const treeHp = CONFIG.cover.hitsToBreak;
             const treeDst = { x, z, r: 1.5 * scale, type: 'tree', hp: treeHp, maxHp: treeHp, geos: partsGeo, dead: false, y: terrainY };
             chunk.destructibles.push(treeDst);
             chunk.colliders.push(treeDst);
@@ -4004,7 +4040,7 @@ window.addEventListener('unhandledrejection', function(e) {
             rockGeo.applyMatrix4(m4);
             put('rock', rockMat, rockGeo, true, true);
             // v19: destructible rock — toughness scales with size
-            const rockHp = Math.round(2 + size * 2.4);
+            const rockHp = CONFIG.cover.hitsToBreak;   // Q047: normalised, see tree above
             const rockDst = { x, z, r: size, type: 'rock', hp: rockHp, maxHp: rockHp, geos: [{ key: 'rock', geo: rockGeo }], dead: false, y: terrainY };
             chunk.destructibles.push(rockDst);
             chunk.colliders.push(rockDst);
@@ -5539,7 +5575,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
         // v6(C): BOSSES — every 5th level one arrives; three kinds rotate
         const BOSS_KINDS = [ // v24: roster of six, rotating
-            { type: 'warlord',  interval: 3.2 },
+            { type: 'warlord',  interval: 6.4 },   // Q039: doubled from 3.2 (Yt03's nerf)
             { type: 'tempest',  interval: 3.0 },
             { type: 'colossus', interval: 3.8 },
             { type: 'titan',    interval: 4.6 },
@@ -7621,7 +7657,9 @@ window.addEventListener('unhandledrejection', function(e) {
                             createExplosion(b.group.position, 8, 0xaaaaaa, col.type);
                             // v19: destructible cover — soak hits, then shatter
                             if (col.hp !== undefined && !col.dead) {
-                                col.hp -= b.group.userData.damage;
+                                // Q047: charge the normalised pool, scaled by how hard this
+                                // shell hits relative to the player's current shell damage
+                                col.hp -= coverHitCost(b.group.userData.damage);
                                 if (col.hp <= 0) {
                                     const ck = chunkKey(Math.floor(col.x / CHUNK), Math.floor(col.z / CHUNK));
                                     const ch2 = envChunks.get(ck);

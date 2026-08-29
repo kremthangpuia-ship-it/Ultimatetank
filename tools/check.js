@@ -394,6 +394,58 @@ setTimeout(() => {
   check('B10 (Q016/17/18) armour pool derives from max HP, stamps delay clock, refills', b10ok,
         r10.__err ? r10.__err : JSON.stringify(r10));
 
+  // --- behaviour 11 (Q039): Warlord is nerfed to Yt03's numbers ---
+  const b11 = ev(`(function(){
+    try {
+      var bk = BOSS_KINDS.find(function(b){ return b.type === 'warlord'; });
+      return JSON.stringify({
+        shotSpeed: ENEMY_SHOT.warlord.speed,
+        interval: bk ? bk.interval : null,
+        // the other five bosses must be untouched
+        others: BOSS_KINDS.filter(function(b){ return b.type !== 'warlord'; })
+                          .map(function(b){ return b.type + ':' + b.interval; })
+      });
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r11 = parsed(b11);
+  check('B11 (Q039) Warlord shells at 18 and interval 6.4s; other bosses untouched',
+        !r11.__err && r11.shotSpeed === 18 && r11.interval === 6.4,
+        r11.__err ? r11.__err : `shotSpeed ${r11.shotSpeed} (want 18), interval ${r11.interval} (want 6.4), others ${JSON.stringify(r11.others)}`);
+
+  // --- behaviour 12 (Q047): cover breaks in two player shells at any level ---
+  const b12 = ev(`(function(){
+    try {
+      var out = { pool: CONFIG.cover.hitsToBreak };
+      // at base damage a player shell is exactly the reference, so it costs 1 unit
+      state.playerStats.damage = 100;
+      out.ref = coverReferenceDamage();
+      out.costNormalShell = +coverHitCost(out.ref).toFixed(4);
+      // level-independence: player damage x4 raises the reference and the shell together
+      state.playerStats.damage = 400;
+      var ref4 = coverReferenceDamage();
+      out.costAt4x = +coverHitCost(ref4).toFixed(4);
+      // a weak enemy shell scores below 1, so cover survives longer against it
+      state.playerStats.damage = 100;
+      out.costEnemyShell = +coverHitCost(12).toFixed(4);
+      // simulate: two player shells break it, four enemy shells do not break in two
+      var hp = CONFIG.cover.hitsToBreak;
+      hp -= coverHitCost(coverReferenceDamage()); out.afterOne = +hp.toFixed(4);
+      hp -= coverHitCost(coverReferenceDamage()); out.afterTwo = +hp.toFixed(4);
+      var hp2 = CONFIG.cover.hitsToBreak;
+      hp2 -= coverHitCost(12); hp2 -= coverHitCost(12); out.enemyAfterTwo = +hp2.toFixed(4);
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r12 = parsed(b12);
+  const b12ok = !r12.__err
+    && r12.pool === 2
+    && r12.costNormalShell === 1 && r12.costAt4x === 1        // level-independent
+    && Math.abs(r12.afterOne - 1) < 1e-9 && r12.afterTwo <= 0 // two shells break it
+    && Math.abs(r12.costEnemyShell - 12 / 22) < 1e-4   // value is reported to 4dp
+    && r12.enemyAfterTwo > 0;                                 // enemy needs more hits
+  check('B12 (Q047) cover takes exactly two player shells at any level; enemies take longer', b12ok,
+        r12.__err ? r12.__err : JSON.stringify(r12));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

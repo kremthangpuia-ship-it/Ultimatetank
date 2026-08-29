@@ -261,7 +261,10 @@
             shieldbearer: { color: 0x93c5fd, speed: 28, life: 1.50, style: 'bolt',  home: 0.00 },
             minelayer:    { color: 0xa3e635, speed: 26, life: 1.35, style: 'spark', home: 0.00 },
             commander:    { color: 0xfacc15, speed: 32, life: 1.45, style: 'bolt',  home: 0.00 },
-            warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
+            // Q039: the first boss teaches patterns rather than deleting new players.
+            //            Shell speed halved 36 -> 18, matching Yt03; Yt02 shipped the
+            //            unhalved value, which its own notes did not mention.
+            warlord:    { color: 0xf87171, speed: 18, life: 1.90, style: 'slug',  home: 0.22 },
             colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
             nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
             titan:      { color: 0x93c5fd, speed: 30, life: 1.80, style: 'slug',  home: 0.18 },
@@ -352,6 +355,11 @@
             // makes armour a tactical resource rather than an infinite second health bar.
             // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
             // (Q020) keeps working unchanged.
+            // Q047: destructible cover, measured in player shells rather than raw HP so it
+            // stays meaningful at every level. See coverHitCost() in 24_chunks.js.
+            cover: {
+                hitsToBreak: 2      // exactly two player shells break any tree or rock
+            },
             armor: {
                 regenDelay: 3,      // seconds without damage before recharge starts
                 regenPerSec: 0.10,  // fraction of the pool refilled per second
