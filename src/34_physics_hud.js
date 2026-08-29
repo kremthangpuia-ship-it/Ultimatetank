@@ -727,12 +727,19 @@
             updateMissiles(dt); // v24
             autoQualityTick(dt); // v25
             updateBiomeMorph(); // v20: morphing realm transition
-            // v24: Missile Pod — homing missiles on a timer
+            // Q013: Missile Pod — fixed launch cadence, stack-driven volley size.
+            // Was: interval = 5 / stacks, one missile per launch (stacks made it faster).
+            // Now: one volley every CONFIG.missile.launchInterval seconds, containing one
+            // missile per stack up to maxPerVolley. Stacks above the cap are recorded as
+            // overload and spent in missileBlast() as extra radius and damage, so the
+            // upgrade keeps paying past the missile limit.
             if ((state.playerStats.missile || 0) > 0 && state.targetEnemy && !state.targetEnemy.isDead) {
-                const mInt = 5 / state.playerStats.missile;
-                if ((state.runTime || 0) - (state.lastMissileAt || 0) > mInt) {
+                const MC = CONFIG.missile;
+                if ((state.runTime || 0) - (state.lastMissileAt || 0) > MC.launchInterval) {
                     state.lastMissileAt = state.runTime || 0;
-                    fireHomingMissile(state.targetEnemy);
+                    const plan = missileVolleyPlan(state.playerStats.missile);
+                    state.missileOverload = plan.overload;
+                    for (let mi = 0; mi < plan.count; mi++) fireHomingMissile(state.targetEnemy);
                 }
             }
             // v24: Shield Generator — recharge + ring visual
@@ -1061,8 +1068,9 @@
             let _dispSpd = _baseSpd;
             if (_isSlowed) _dispSpd = Math.round(_baseSpd * _rootMult);
             if (_isHasted) {
-                const _hasteBonus = 1 + 0.25 * (Math.max(0, state.playerStats.adrenaline || 0) + 1);
-                _dispSpd = Math.round(_baseSpd * _hasteBonus);
+                // Q011: reads the SAME helper the movement code does, so the meter can
+                // never display a number the physics does not apply.
+                _dispSpd = Math.round(_baseSpd * adrenalineSpeedMult());
             }
             if (_hudSpd) _hudSpd.textContent = _dispSpd;
             // Pill colour: gold = hasted, amber = slowed, default = normal
@@ -1183,7 +1191,7 @@
             else if ((state.playerStats && state.playerStats.shield || 0) > 0 && now >= (state.shieldReadyAt || 0)) bits.push(['RDY', 'buff-ready']);
             if (now < (state.overchargeUntil || 0)) bits.push(['OC', 'buff-oc']);
             if (now < (state.blastUntil || 0)) bits.push(['+20', 'buff-blast']);
-            if (now < (state.speedBoostUntil || 0)) bits.push(['HST', 'buff-haste']);
+            if (now < (state.speedBoostUntil || 0)) bits.push(['HST', 'buff-haste buff-haste-timer']);
             if (state.funKind === 'bounty' && now < (state.funUntil || 0)) bits.push(['$$$', 'buff-bounty']);
             if (state.funKind === 'ambush' && now < (state.funUntil || 0)) bits.push(['AMB', 'buff-bounty']);
             if (state._rootSlow && state._rootSlow < 1) bits.push(['ROOT', 'buff-haste']);
@@ -1192,9 +1200,18 @@
             const tr = currentBiomeTrait();
             if (tr && bits.every(function (b) { return b[0] !== tr.short; })) bits.push([tr.short, 'buff-ready']);
             const key = bits.map(function (b) { return b[0]; }).join('|');
-            if (row.dataset.k === key) return;
-            row.dataset.k = key;
-            row.innerHTML = bits.map(function (b) { return '<span class="buff-pill ' + b[1] + '">' + b[0] + '</span>'; }).join('');
+            if (row.dataset.k !== key) {
+                row.dataset.k = key;
+                row.innerHTML = bits.map(function (b) { return '<span class="buff-pill ' + b[1] + '">' + b[0] + '</span>'; }).join('');
+            }
+            // Q011: Adrenaline now lasts a full minute, so the player needs to see how much
+            // is left. The row above is cached on the set of active pills to avoid
+            // rebuilding innerHTML every frame, so the countdown text is patched onto the
+            // existing haste pill instead of being folded into that key.
+            if (now < (state.speedBoostUntil || 0)) {
+                const hastePill = row.querySelector('.buff-haste-timer');
+                if (hastePill) hastePill.textContent = 'HST ' + Math.ceil(state.speedBoostUntil - now) + 's';
+            }
         }
 
         let _fps = 0, _fpsN = 0, _fpsT = 0;

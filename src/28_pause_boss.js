@@ -87,19 +87,22 @@
             if (state.mode === 'casual' && state.level > 20) n = Math.min(22, 14 + Math.floor((state.level - 20) / 4));
             return n;
         }
-        function enemyLevelScale() {
-            const L = state.level || 1;
-            return {
-                hp:  1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 10) * 0.03  + Math.max(0, L - 20) * 0.05,
-                // v28.6: lv1–10 stay as you liked; after 10 damage climbs slower (teens pass)
-                // Fix3: base multiplier reduced so L1 enemies start at stated damage, not 65% above it
-                dmg: (0.70 + Math.max(0, L - 1) * 0.032) * 1.5
-                    + Math.max(0, L - 10) * 0.016
-                    + Math.max(0, L - 20) * 0.022,
-                spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.01),
-                pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
-            };
-        }
+    // Q031/Q032: every number now comes from CONFIG.enemyDmg / CONFIG.enemyHp rather than
+    // being baked into the expression. Swapping CONFIG.enemyCurvePresets.easy in changes
+    // the whole difficulty ramp without touching this function. Speed and points are
+    // unchanged across all three legacy builds, so they stay literal.
+    function enemyLevelScale() {
+        const L = state.level || 1;
+        const d = CONFIG.enemyDmg, h = CONFIG.enemyHp;
+        return {
+            hp:  h.base + Math.max(0, L - 1) * h.perLevel,
+            dmg: d.base + Math.max(0, L - 1) * d.slope
+                        + Math.max(0, L - 10) * d.mid
+                        + Math.max(0, L - 20) * d.late,
+            spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.01),
+            pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
+        };
+    }
 
         function getEnemyTypeForLevel(level) {
             const types = ['scout', 'soldier'];
@@ -198,8 +201,14 @@
                     fxRingAt(player.mesh.position.x, player.mesh.position.z, 0x4ade80, 0.7, 2.8, 0.28, true);
                 } catch (err) {}
             }
-            if (state.playerStats.adrenaline) state.speedBoostUntil = (state.runTime || 0) + (state.playerStats.evo_afterburner ? 3 : 1.5);
-            else if (state.playerStats.evo_afterburner) state.speedBoostUntil = (state.runTime || 0) + 3;
+            // Q011: Adrenaline Rush is now a minute-long buff, refreshed by every kill,
+            // instead of a 1.5s flicker. Afterburner doubles the duration, keeping the
+            // legacy 1.5s -> 3s ratio intact at the new timescale.
+            if (state.playerStats.adrenaline || state.playerStats.evo_afterburner) {
+                const AD = CONFIG.adrenaline;
+                const dur = AD.duration * (state.playerStats.evo_afterburner ? AD.afterburnerMultiplier : 1);
+                state.speedBoostUntil = (state.runTime || 0) + dur;
+            }
             try { trackKill(!!enemy.isBoss, !!isCrit, Math.floor(points * 0.5)); } catch (err) {}
             try { addKillReward(enemy); } catch (err) {}
             const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');

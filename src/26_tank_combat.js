@@ -242,10 +242,8 @@
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
                         if ((state._rootSlow || 1) < 1) speed *= state._rootSlow;
-                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) {
-                            speed *= 1 + 0.25 * (Math.max(0, state.playerStats.adrenaline || 0) + 1); // Fix7: 0 cards=×1.25, 1 card=×1.50, 2=×1.75
-                            if (state.playerStats.evo_afterburner) speed *= 1.12;
-                        }
+                        // Q011: one source of truth, shared with the HUD speed meter
+                        speed *= adrenalineSpeedMult();
                     } else {
                         speed *= (this.typeData?.speed || 1) * 0.55 * (this.speedMult || 1); // v26: level scaling
                     }
@@ -731,6 +729,18 @@
                 }
             }
         }
+        // Q013: single source of truth for how a Missile Pod stack count turns into a
+        // volley. Split out so the release harness can assert the cap and the overload
+        // rollover without running the frame loop.
+        function missileVolleyPlan(stacks) {
+            const MC = CONFIG.missile;
+            const n = Math.max(0, stacks || 0);
+            return {
+                count: Math.min(n, MC.maxPerVolley),
+                overload: Math.max(0, n - MC.maxPerVolley)
+            };
+        }
+
         function fireHomingMissile(target) {
             const g = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 1.2), new THREE.MeshBasicMaterial({ color: 0xff6644 }));
@@ -785,15 +795,23 @@
                 }
             }
         }
-        function missileBlast(pos) { // 2.5× splash damage in a 6.5-unit radius
-            const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 2.5;
-            createExplosion(pos, 34, 0xff8844, 'armor');
+        function missileBlast(pos) {
+            // Q013: past CONFIG.missile.maxPerVolley the volley stops growing and the blast
+            // takes over — each overload stack widens the radius and increases the damage,
+            // so Missile Pod stacks never stop mattering. At zero overload this is exactly
+            // the legacy 2.5x damage in a 6.5-unit radius.
+            const MC = CONFIG.missile;
+            const overload = state.missileOverload || 0;
+            const radius = 6.5 * (1 + overload * MC.overloadRadiusPerStack);
+            const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 2.5
+                        * (1 + overload * MC.overloadDamagePerStack);
+            createExplosion(pos, 34 * (1 + overload * MC.overloadRadiusPerStack), 0xff8844, 'armor');
             SFX.explosion(34);
             for (let j = enemies.length - 1; j >= 0; j--) {
                 const e = enemies[j];
                 if (e.isDead) continue;
                 const d = e.mesh.position.distanceTo(pos);
-                if (d < 6.5) {
+                if (d < radius) {
                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                     e.takeDamage(dmg * (d < 3 ? 1 : 0.5) * (isCrit ? 2 : 1));
                     if (!e.isDead) bumpComboFromHit(e);
@@ -817,6 +835,29 @@
         const enemyFireRoll = (base, dt) => Math.random() < base * dt * 60 * (state.diffMult.fire || 1)
             * (1 + Math.min(0.5, Math.max(0, (state.level || 1) - 1) * 0.015));
         let _sfxShootAt = 0, _sfxEnemyAt = 0;
+        // Q011: the Adrenaline Rush damage bonus, in ONE place. shoot() multiplies by this
+        // and the HUD meter displays this same value, so the number the player reads can
+        // never disagree with the number the pipeline applies (audit defect D-05 was exactly
+        // that disagreement: Yt01's meter advertised +5%/stack and shoot() had no such term).
+        // Returns 1 when the buff is down or no stacks are owned.
+        function adrenalineDamageMult() {
+            if ((state.runTime || 0) >= (state.speedBoostUntil || 0)) return 1;
+            const stacks = Math.max(0, state.playerStats.adrenaline || 0);
+            return 1 + CONFIG.adrenaline.damagePerStack * stacks;
+        }
+
+        // Q011: the matching speed multiplier. Preserves Yt02's existing in-movement math
+        // exactly — 0 stacks = x1.25, 1 = x1.50, 2 = x1.75, plus Afterburner's x1.12 — so
+        // this refactor changes where the number is computed, not what it computes.
+        // Movement and the HUD speed meter both read this, so they cannot drift apart.
+        function adrenalineSpeedMult() {
+            if ((state.runTime || 0) >= (state.speedBoostUntil || 0)) return 1;
+            const stacks = Math.max(0, state.playerStats.adrenaline || 0);
+            let m = 1 + CONFIG.adrenaline.speedPerStack * (stacks + 1);
+            if (state.playerStats.evo_afterburner) m *= 1.12;
+            return m;
+        }
+
         function shoot(source) {
             const nowS = performance.now();
             if (source.isPlayer) {
@@ -847,6 +888,7 @@
                 ? CONFIG.baseDamage * (state.playerStats.damage / 100)
                     * ((state.runTime || 0) < (state.overchargeUntil || 0) ? 1.3 : 1)
                     * ((state.runTime || 0) < (state.blastUntil || 0) ? 1.2 : 1)
+                    * adrenalineDamageMult()   // Q011: +5% per Adrenaline stack, now real
                 : (ENEMY_TYPES[source.type]?.damage || 12);
             let siegeShot = false;
             if (source.isPlayer && state.playerStats.evo_siege) {

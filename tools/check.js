@@ -210,6 +210,143 @@ setTimeout(() => {
         r4.blocked === true && r4.safeUntil === 103,
         r4.__err ? r4.__err : `spawnSafeUntil ${r4.safeUntil}, spawnBlocked() ${r4.blocked}`);
 
+  // --- behaviour 5 (Q031/Q032): enemy curve reads CONFIG, and presets swap it ---
+  const b5 = ev(`(function(){
+    try {
+      var out = {};
+      [1, 10, 20, 30, 50].forEach(function(L){
+        state.level = L;
+        var s = enemyLevelScale();
+        out['L'+L] = { dmg: +s.dmg.toFixed(4), hp: +s.hp.toFixed(4) };
+      });
+      // preset swap must change the ramp without touching the function
+      var saved = CONFIG.enemyDmg;
+      CONFIG.enemyDmg = CONFIG.enemyCurvePresets.easy.dmg;
+      state.level = 30;
+      out.easyL30 = +enemyLevelScale().dmg.toFixed(4);
+      CONFIG.enemyDmg = saved;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r5 = parsed(b5);
+  // Yt03 numbers: dmg = 1.0 + (L-1)*0.048 + max(0,L-10)*0.016 + max(0,L-20)*0.022
+  //   L1 = 1.0000, L10 = 1.4320, L20 = 2.0720, L30 = 2.9320, L50 = 4.6520
+  // easy preset at L30 = 1.0 + 29*0.032 + 20*0.016 + 10*0.022 = 2.4680
+  const want5 = { L1: 1.0, L10: 1.432, L20: 2.072, L30: 2.932, L50: 4.652 };
+  const b5ok = !r5.__err && Object.keys(want5).every(k => Math.abs(r5[k].dmg - want5[k]) < 1e-9)
+               && Math.abs(r5.L30.hp - 1.87) < 1e-9 && Math.abs(r5.easyL30 - 2.468) < 1e-9;
+  check('B5 (Q031/Q032) enemy damage curve matches Yt03 numbers; presets swap live', b5ok,
+        r5.__err ? r5.__err : `dmg ${JSON.stringify(Object.fromEntries(Object.keys(want5).map(k=>[k,r5[k].dmg])))}, hp@L30 ${r5.L30.hp}, easy@L30 ${r5.easyL30}`);
+
+  // --- behaviour 6 (Q115): evolution progress survives a save/resume round trip ---
+  const b6 = ev(`(function(){
+    try {
+      // snapshotRun() guards on a live casual run, so stand one up first
+      state.mode = 'casual';
+      if (!player) player = { isPlayer: true, isDead: false, hp: 80, maxHp: 100,
+                              mesh: { position: { x: 1, y: 0, z: 2 }, traverse: function () {} },
+                              updateHpBar: function () {} };
+      state.playerStats = state.playerStats || { maxHp: 100 };
+      state.runCardsObj = { missile: 2, splash: 1 };
+      state.evolutions = ['bastion'];
+      var snap = snapshotRun();
+      if (!snap) return 'snapshotRun() returned null';
+      // a new run wipes the live counters; the snapshot must be unaffected (deep copy)
+      state.runCardsObj = {}; state.runCardsObj.missile = 9; state.evolutions = [];
+      return JSON.stringify({
+        snapObj: snap.runCardsObj, snapEvos: snap.evolutions,
+        liveNow: state.runCardsObj
+      });
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r6 = parsed(b6);
+  check('B6 (Q115) snapshot deep-copies the evolution counter',
+        !!r6.snapObj && r6.snapObj.missile === 2 && r6.snapObj.splash === 1
+        && Array.isArray(r6.snapEvos) && r6.snapEvos[0] === 'bastion'
+        && r6.liveNow.missile === 9,
+        r6.__err ? r6.__err : `snapshot ${JSON.stringify(r6.snapObj)}, evos ${JSON.stringify(r6.snapEvos)}, live after wipe ${JSON.stringify(r6.liveNow)}`);
+
+  // --- behaviour 7 (Q022): the early-game force-offer guard has real data to read ---
+  // showUpgradeChoices() suppresses the forced regen/healOnKill cards with
+  //   !(state.runCardStats || []).includes(stat)
+  // so if runCardStats were never populated, every card would look unowned and the first
+  // five hands would always be forced. noteRunCard() is the single writer.
+  const b7 = ev(`(function(){
+    try {
+      state.runCards = []; state.runCardStats = []; state.runCardsObj = {}; state.evolutions = [];
+      noteRunCard({ stat: 'regen', icon: 'x', text: 'Nano Repair' });
+      noteRunCard({ stat: 'healOnKill', icon: 'x', text: 'Scrap Fever' });
+      noteRunCard({ stat: 'regen', icon: 'x', text: 'Nano Repair' });
+      return JSON.stringify({
+        stats: state.runCardStats,
+        counts: state.runCardsObj,
+        regenOwned: state.runCardStats.indexOf('regen') >= 0,
+        hokOwned:   state.runCardStats.indexOf('healOnKill') >= 0
+      });
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r7 = parsed(b7);
+  check('B7 (Q022) noteRunCard populates the ownership list the force-offer guard reads',
+        r7.regenOwned === true && r7.hokOwned === true && r7.counts.regen === 2,
+        r7.__err ? r7.__err : `stats ${JSON.stringify(r7.stats)}, counts ${JSON.stringify(r7.counts)}`);
+
+  // --- behaviour 8 (Q013): missile volley cap and overload rollover ---
+  const b8 = ev(`(function(){
+    try {
+      var out = {};
+      [0, 1, 3, 10, 11, 15].forEach(function(n){
+        var p = missileVolleyPlan(n);
+        out['s'+n] = { count: p.count, overload: p.overload };
+      });
+      out.interval = CONFIG.missile.launchInterval;
+      out.cap = CONFIG.missile.maxPerVolley;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r8 = parsed(b8);
+  const b8ok = !r8.__err
+    && r8.s0.count === 0  && r8.s0.overload === 0
+    && r8.s1.count === 1  && r8.s3.count === 3
+    && r8.s10.count === 10 && r8.s10.overload === 0
+    && r8.s11.count === 10 && r8.s11.overload === 1
+    && r8.s15.count === 10 && r8.s15.overload === 5
+    && r8.interval === 5 && r8.cap === 10;
+  check('B8 (Q013) volley caps at 10, extra stacks become overload, cadence fixed', b8ok,
+        r8.__err ? r8.__err : JSON.stringify(r8));
+
+  // --- behaviour 9 (Q011): Adrenaline duration, real damage, meter parity ---
+  const b9 = ev(`(function(){
+    try {
+      var AD = CONFIG.adrenaline, out = {};
+      out.duration = AD.duration;
+      // buff down: both multipliers must be exactly 1
+      state.runTime = 0; state.speedBoostUntil = 0;
+      state.playerStats.adrenaline = 3; state.playerStats.evo_afterburner = false;
+      out.downDmg = adrenalineDamageMult(); out.downSpd = adrenalineSpeedMult();
+      // buff up
+      state.speedBoostUntil = 60;
+      out.upDmg0 = adrenalineDamageMult();                 // 3 stacks -> but set explicitly below
+      state.playerStats.adrenaline = 0; out.spd0 = +adrenalineSpeedMult().toFixed(4);
+      state.playerStats.adrenaline = 1; out.spd1 = +adrenalineSpeedMult().toFixed(4);
+      state.playerStats.adrenaline = 2; out.spd2 = +adrenalineSpeedMult().toFixed(4);
+      out.dmg2 = +adrenalineDamageMult().toFixed(4);       // 1 + 0.05*2
+      state.playerStats.adrenaline = 4; out.dmg4 = +adrenalineDamageMult().toFixed(4);
+      // afterburner doubles duration and adds x1.12 to speed
+      state.playerStats.adrenaline = 1; state.playerStats.evo_afterburner = true;
+      out.spdAb = +adrenalineSpeedMult().toFixed(4);
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r9 = parsed(b9);
+  const b9ok = !r9.__err
+    && r9.duration === 60
+    && r9.downDmg === 1 && r9.downSpd === 1
+    && r9.spd0 === 1.25 && r9.spd1 === 1.5 && r9.spd2 === 1.75   // Yt02 math preserved
+    && Math.abs(r9.dmg2 - 1.10) < 1e-9 && Math.abs(r9.dmg4 - 1.20) < 1e-9
+    && Math.abs(r9.spdAb - 1.5 * 1.12) < 1e-9;
+  check('B9 (Q011) Adrenaline is 60s, +5%/stack damage is real, meter matches movement', b9ok,
+        r9.__err ? r9.__err : JSON.stringify(r9));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

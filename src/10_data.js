@@ -290,7 +290,61 @@
             killPayoutScale: 0.5,
             // Q010: hard top-speed cap, as a multiple of base playerSpeed. Stacked speed
             // cards + Adrenaline cannot exceed this, in movement OR in the speed meter.
-            playerSpeedMaxMult: 2.6
+            playerSpeedMaxMult: 2.6,
+
+            // Q031: the enemy damage curve, parameterised instead of hardcoded.
+            // The three legacy builds each baked different numbers straight into the
+            // formula, so "merge" meant choosing one and losing the others. They now live
+            // here as one formula with swappable presets:
+            //   dmg = base + (L-1)*slope + max(0,L-10)*mid + max(0,L-20)*late
+            // Yt03's numbers are the default. Yt01's are the "easy" preset. Yt02's are not
+            // carried: its expression was (0.70 + (L-1)*0.032) * 1.5, which expands to a
+            // base of 1.05 at the same 0.048 slope as Yt03 — the stray *1.5 was an
+            // undocumented 5% inflation (audit defect D-04), not a distinct tuning.
+            enemyDmg: { base: 1.0, slope: 0.048, mid: 0.016, late: 0.022 },
+
+            // Q032: enemy HP ramp, stated as +3% per level. Also parameterised.
+            // NOTE: this is flatter than every legacy build, which all used a three-band
+            // ramp (5% then +3% after L10 then +5% after L20) reaching ~3.55x at level 30.
+            // The literal reading of the decision reaches ~1.87x. One constant to change
+            // if the intent was the steeper legacy curve.
+            enemyHp: { base: 1, perLevel: 0.03 },
+
+            // Q031: presets swap the whole curve in one assignment.
+            enemyCurvePresets: {
+                // Yt03 numbers — the shipped default
+                normal: { dmg: { base: 1.0, slope: 0.048, mid: 0.016, late: 0.022 },
+                          hp:  { base: 1,   perLevel: 0.03 } },
+                // Yt01 numbers — gentler early slope, same mid/late bands
+                easy:   { dmg: { base: 1.0, slope: 0.032, mid: 0.016, late: 0.022 },
+                          hp:  { base: 1,   perLevel: 0.03 } }
+            },
+
+            // Q013: homing missiles. The legacy behaviour made extra Missile Pod stacks
+            // shorten the launch timer (interval = 5 / stacks) while still firing ONE
+            // missile per launch. The decision reverses that: the cadence is fixed and the
+            // stack count decides how many missiles fly per volley, capped at 10. Stacks
+            // past the cap stop adding missiles and instead enlarge and strengthen the
+            // blast, so the upgrade never becomes a no-op.
+            missile: {
+                launchInterval: 5,          // seconds between volleys, independent of stacks
+                maxPerVolley: 10,           // hard cap on missiles fired at once
+                overloadRadiusPerStack: 0.08, // +8% blast radius per stack above the cap
+                overloadDamagePerStack: 0.10  // +10% blast damage per stack above the cap
+            },
+
+            // Q011: Adrenaline Rush. Was a 1.5-second haste flicker per kill (3s with the
+            // Afterburner evolution). It is now a full minute-long buff that any kill
+            // refreshes, with a countdown on screen. The +5%-per-stack damage that Yt01
+            // advertised but never applied (audit defect D-05: the number existed only in
+            // the HUD meter) is now real inside shoot(), and only while the buff is up.
+            adrenaline: {
+                duration: 60,             // seconds; every kill refreshes it to full
+                speedPerStack: 0.25,      // +25% movement per stack (unchanged)
+                damagePerStack: 0.05,     // +5% shell damage per stack — now actually applied
+                afterburnerMultiplier: 2  // Afterburner evolution doubles the duration,
+                                          // preserving the legacy 1.5s -> 3s ratio
+            }
         };
 
         // v14: resilient storage — works even where localStorage is blocked (sandboxed
