@@ -495,11 +495,12 @@ function applyUpgrade(up){
                 if (_b.damage)    state.playerStats.damage    = (state.playerStats.damage    || 100) + _b.damage;
                 if (_b.fireRate)  state.playerStats.fireRate  = (state.playerStats.fireRate  || 100) + _b.fireRate;
                 if (_b.crit)      state.playerStats.crit      = (state.playerStats.crit      || 0)   + _b.crit;
+                // Q016/Q017: an armour grant re-derives the pool and credits the growth
                 if (_b.armor)     { state.playerStats.armor   = (state.playerStats.armor     || 0)   + _b.armor;
-                                    state.armorMaxHp = state.playerStats.armor;
-                                    state.armorHp = Math.min(state.playerStats.armor, (state.armorHp || 0) + _b.armor); }
+                                    recalcArmorPool(true); }
                 if (_b.maxHp)     { state.playerStats.maxHp   = (state.playerStats.maxHp    || 100) + _b.maxHp;
-                                    if (player) { player.maxHp = state.playerStats.maxHp; player.hp = Math.min(player.hp + _b.maxHp, player.maxHp); } }
+                                    if (player) { player.maxHp = state.playerStats.maxHp; player.hp = Math.min(player.hp + _b.maxHp, player.maxHp); }
+                                    recalcArmorPool(true); }   // Q016: pool is %-of-maxHp
                 if (_b.regen)     state.playerStats.regen     = (state.playerStats.regen     || 0)   + _b.regen;
                 if (_b.pierce)    state.playerStats.pierce    = (state.playerStats.pierce    || 0)   + _b.pierce;
                 if (_b.multishot) state.playerStats.multishot = (state.playerStats.multishot || 0)   + _b.multishot;
@@ -524,10 +525,12 @@ function applyUpgrade(up){
             player.hp = Math.min(player.hp + up.amount, player.maxHp);
         }
     } else if (up.stat === 'armor') {
-        // v1.5: armor card expands the shield pool AND fills the added amount immediately
+        // Q016/Q017: an armour card grows the pool and the growth is credited immediately
         state.playerStats.armor += up.amount;
-        state.armorMaxHp = state.playerStats.armor;
-        state.armorHp = Math.min(state.playerStats.armor, (state.armorHp || 0) + up.amount);
+        recalcArmorPool(true);
+    } else if (up.stat === 'maxHp') {
+        state.playerStats.maxHp = (state.playerStats.maxHp || 100) + up.amount;
+        recalcArmorPool(true);   // Q016: a bigger hull means a bigger pool
     } else {
         state.playerStats[up.stat] = (state.playerStats[up.stat] || 0) + up.amount;
     }

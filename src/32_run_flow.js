@@ -240,12 +240,21 @@
             }
             // v1.5: Armor shield pool — starts full at run start (or resume)
             // Fix 5: Aegis gives 20 base armor pool even if player has no armor cards
-            const _aegisBonus = (!resume && useAegis && state.playerStats.armor === 0) ? 20 : 0;
+            // Q018: Aegis Kit grants a base pool when you own no armour cards, so the bar
+            // and the recharge actually have something to work with. Only on a fresh run —
+            // Yt03's guard, so resuming a save is never overwritten by the consumable.
+            const _aegisBonus = (!resume && useAegis && state.playerStats.armor === 0)
+                ? CONFIG.armor.aegisBasePool : 0;
             if (_aegisBonus > 0) { state.playerStats.armor += _aegisBonus; }
-            state.armorHp = resume
-                ? (typeof opts.resume.armorHp === 'number' ? opts.resume.armorHp : state.playerStats.armor)
-                : state.playerStats.armor;
-            state.armorMaxHp = state.playerStats.armor; // tracks max for bar display
+            // Q016: the pool is derived (floor(maxHp * armor/100)), not a copy of the stat.
+            recalcArmorPool(false);
+            if (resume && typeof opts.resume.armorHp === 'number') {
+                state.armorHp = Math.min(opts.resume.armorHp, state.armorMaxHp || 0);
+            } else if (!resume) {
+                // recalcArmorPool(false) deliberately only clamps — it must not invent
+                // pool out of nowhere — so a fresh run is filled explicitly here.
+                state.armorHp = state.armorMaxHp || 0;
+            }
             state.reviveAvailable = (meta.revive || 0) > 0;
             if (!resume) state.continuesThisRun = 0;
             state.surgeActive = false;
@@ -574,9 +583,9 @@
             const kind = kinds[Math.floor(Math.random() * kinds.length)];
             if (kind === 'repair') {
                 player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.45));
-                // v1.5: repair kit also fully restores armor pool
-                const _am = state.armorMaxHp || state.playerStats.armor || 0;
-                if (_am > 0) state.armorHp = _am;
+                // Q017: repair kit fully restores the armour pool
+                const _am = state.armorMaxHp || 0;
+                if (_am > 0) refillArmorPool(1);
                 try { createHealEffect(player.mesh.position); } catch (e) {}
                 showUpgradeNotification('❤️ Repair kit +45% HP' + (_am > 0 ? ' + Armor restored' : ''));
             } else if (kind === 'overcharge') {

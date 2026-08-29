@@ -344,6 +344,19 @@
                 damagePerStack: 0.05,     // +5% shell damage per stack — now actually applied
                 afterburnerMultiplier: 2  // Afterburner evolution doubles the duration,
                                           // preserving the legacy 1.5s -> 3s ratio
+            },
+
+            // Q016: the armour pool. Yt03's model is the engine — the pool is a percentage
+            // of max HP, so it stays meaningful as health builds grow, instead of a flat
+            // number that becomes noise. Recharge only begins after a clean window, which
+            // makes armour a tactical resource rather than an infinite second health bar.
+            // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
+            // (Q020) keeps working unchanged.
+            armor: {
+                regenDelay: 3,      // seconds without damage before recharge starts
+                regenPerSec: 0.10,  // fraction of the pool refilled per second
+                regenFloor: 1,      // minimum points/second so a tiny pool still recovers
+                aegisBasePool: 20   // Q018: Aegis Kit grants this pool if you own no armour
             }
         };
 

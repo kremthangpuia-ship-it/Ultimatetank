@@ -347,6 +347,53 @@ setTimeout(() => {
   check('B9 (Q011) Adrenaline is 60s, +5%/stack damage is real, meter matches movement', b9ok,
         r9.__err ? r9.__err : JSON.stringify(r9));
 
+  // --- behaviour 10 (Q016/Q017/Q018): armour pool is derived, delayed, refillable ---
+  const b10 = ev(`(function(){
+    try {
+      var out = {};
+      if (!player) player = { isPlayer:true, isDead:false, hp:100, maxHp:100,
+                              mesh:{position:{x:0,y:0,z:0},traverse:function(){}}, updateHpBar:function(){} };
+      player.maxHp = 200;
+      state.playerStats.maxHp = 200; state.playerStats.armor = 10;
+      out.poolMax = armorPoolMax();                    // floor(200 * 10/100) = 20
+      // recalcArmorPool(false) derives the max and CLAMPS; it must not invent pool.
+      state.armorHp = 999;                             // over-full, must clamp down to 20
+      recalcArmorPool(false);
+      out.afterRecalc = { max: state.armorMaxHp, hp: state.armorHp };
+      // recalcArmorPool(true) credits growth instead
+      state.armorHp = 5; recalcArmorPool(true);
+      out.afterRecalcGain = state.armorHp;             // 5 + (20 - 20) = 5, no growth yet
+      // taking a hit must stamp the clean-window clock (the recharge delay depends on it)
+      state.runTime = 500; state.lastDamagedAt = 0; state.armorHp = 20;
+      player.hp = 100; state.shieldUp = false; state.invulnUntil = 0; state.bastionSoakUntil = 0;
+      Tank.prototype.takeDamage.call(player, 5);
+      out.lastDamagedAt = state.lastDamagedAt;         // must now be 500
+      out.armorAfterHit = state.armorHp;               // 20 - 5 = 15
+      out.hpAfterHit = player.hp;                      // untouched
+      // growing max HP must grow the pool (pool is %-of-maxHp, not a flat number)
+      player.maxHp = 400; state.playerStats.maxHp = 400;
+      recalcArmorPool(true);
+      out.poolAfterHpGrowth = { max: state.armorMaxHp, hp: state.armorHp };  // 40, credited +20
+      // pickups top it up
+      state.armorHp = 4; refillArmorPool(1);
+      out.afterRefill = state.armorHp;                 // back to 40
+      out.cfg = CONFIG.armor;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r10 = parsed(b10);
+  const b10ok = !r10.__err
+    && r10.poolMax === 20
+    && r10.afterRecalc.max === 20 && r10.afterRecalc.hp === 20
+    && r10.afterRecalcGain === 5
+    && r10.lastDamagedAt === 500
+    && r10.armorAfterHit === 15 && r10.hpAfterHit === 100
+    && r10.poolAfterHpGrowth.max === 40 && r10.poolAfterHpGrowth.hp === 35
+    && r10.afterRefill === 40
+    && r10.cfg.regenDelay === 3 && r10.cfg.regenPerSec === 0.10 && r10.cfg.aegisBasePool === 20;
+  check('B10 (Q016/17/18) armour pool derives from max HP, stamps delay clock, refills', b10ok,
+        r10.__err ? r10.__err : JSON.stringify(r10));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

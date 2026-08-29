@@ -359,7 +359,11 @@
                     try { fxSparks(this.mesh.position.x, this.mesh.position.y + 1.2, this.mesh.position.z, 0x93c5fd, 6); } catch (e) {}
                 }
                 let incoming = amount;
-                // v1.5: Armor is a full shield pool — absorbs ALL damage before HP is touched
+                // Q016: stamp the clean-window clock. Set even when armour fully soaks the
+                // hit — being attacked is what resets the recharge delay, not losing HP.
+                if (this.isPlayer) state.lastDamagedAt = state.runTime || 0;
+                // Q016: Armor is a pool sized as a percentage of max HP — absorbs ALL
+                // damage before HP is touched
                 if (this.isPlayer) {
                     const armorPool = state.armorHp || 0;
                     if (armorPool > 0) {
@@ -835,6 +839,44 @@
         const enemyFireRoll = (base, dt) => Math.random() < base * dt * 60 * (state.diffMult.fire || 1)
             * (1 + Math.min(0.5, Math.max(0, (state.level || 1) - 1) * 0.015));
         let _sfxShootAt = 0, _sfxEnemyAt = 0;
+        // ---------------------------------------------------------------------------
+        // Q016: ARMOR POOL ENGINE — Yt03's math, Yt02's storage.
+        // The pool is floor(maxHp * armor/100), so it scales with your health build.
+        // Held on state.armorHp / state.armorMaxHp rather than on the player object so
+        // Yt02's full-height HP-bar overlay and pause cell (Q020) work unmodified.
+        // ---------------------------------------------------------------------------
+        function armorPoolMax() {
+            const base = player ? player.maxHp : ((state.playerStats && state.playerStats.maxHp) || 0);
+            const pct = ((state.playerStats && state.playerStats.armor) || 0) / 100;
+            return Math.floor(base * pct);
+        }
+
+        // Re-derive the pool after max HP or the armour stat changes.
+        // gainNew=true credits the player for the growth (used when picking a card);
+        // gainNew=false only clamps (used on load, so a stale pool is not inflated).
+        function recalcArmorPool(gainNew) {
+            const nm = armorPoolMax();
+            const delta = nm - (state.armorMaxHp || 0);
+            state.armorMaxHp = nm;
+            if (state.armorHp == null) state.armorHp = nm;
+            else {
+                if (gainNew && delta > 0) state.armorHp += delta;
+                if (state.armorHp > nm) state.armorHp = nm;
+                if (state.armorHp < 0) state.armorHp = 0;
+            }
+            try { updateHUD(); } catch (e) {}
+        }
+
+        // Q017: pickups top the pool up. frac defaults to a full refill (Yt01's behaviour
+        // for repair kits, shield batteries and airdrops).
+        function refillArmorPool(frac) {
+            const nm = armorPoolMax();
+            state.armorMaxHp = nm;
+            const add = Math.ceil(nm * (frac == null ? 1 : frac));
+            state.armorHp = Math.min(nm, (state.armorHp || 0) + add);
+            try { updateHUD(); } catch (e) {}
+        }
+
         // Q011: the Adrenaline Rush damage bonus, in ONE place. shoot() multiplies by this
         // and the HUD meter displays this same value, so the number the player reads can
         // never disagree with the number the pipeline applies (audit defect D-05 was exactly

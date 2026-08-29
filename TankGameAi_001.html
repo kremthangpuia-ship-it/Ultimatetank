@@ -2526,6 +2526,19 @@ window.addEventListener('unhandledrejection', function(e) {
                 damagePerStack: 0.05,     // +5% shell damage per stack — now actually applied
                 afterburnerMultiplier: 2  // Afterburner evolution doubles the duration,
                                           // preserving the legacy 1.5s -> 3s ratio
+            },
+
+            // Q016: the armour pool. Yt03's model is the engine — the pool is a percentage
+            // of max HP, so it stays meaningful as health builds grow, instead of a flat
+            // number that becomes noise. Recharge only begins after a clean window, which
+            // makes armour a tactical resource rather than an infinite second health bar.
+            // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
+            // (Q020) keeps working unchanged.
+            armor: {
+                regenDelay: 3,      // seconds without damage before recharge starts
+                regenPerSec: 0.10,  // fraction of the pool refilled per second
+                regenFloor: 1,      // minimum points/second so a tiny pool still recovers
+                aegisBasePool: 20   // Q018: Aegis Kit grants this pool if you own no armour
             }
         };
 
@@ -4487,7 +4500,11 @@ window.addEventListener('unhandledrejection', function(e) {
                     try { fxSparks(this.mesh.position.x, this.mesh.position.y + 1.2, this.mesh.position.z, 0x93c5fd, 6); } catch (e) {}
                 }
                 let incoming = amount;
-                // v1.5: Armor is a full shield pool — absorbs ALL damage before HP is touched
+                // Q016: stamp the clean-window clock. Set even when armour fully soaks the
+                // hit — being attacked is what resets the recharge delay, not losing HP.
+                if (this.isPlayer) state.lastDamagedAt = state.runTime || 0;
+                // Q016: Armor is a pool sized as a percentage of max HP — absorbs ALL
+                // damage before HP is touched
                 if (this.isPlayer) {
                     const armorPool = state.armorHp || 0;
                     if (armorPool > 0) {
@@ -4963,6 +4980,44 @@ window.addEventListener('unhandledrejection', function(e) {
         const enemyFireRoll = (base, dt) => Math.random() < base * dt * 60 * (state.diffMult.fire || 1)
             * (1 + Math.min(0.5, Math.max(0, (state.level || 1) - 1) * 0.015));
         let _sfxShootAt = 0, _sfxEnemyAt = 0;
+        // ---------------------------------------------------------------------------
+        // Q016: ARMOR POOL ENGINE — Yt03's math, Yt02's storage.
+        // The pool is floor(maxHp * armor/100), so it scales with your health build.
+        // Held on state.armorHp / state.armorMaxHp rather than on the player object so
+        // Yt02's full-height HP-bar overlay and pause cell (Q020) work unmodified.
+        // ---------------------------------------------------------------------------
+        function armorPoolMax() {
+            const base = player ? player.maxHp : ((state.playerStats && state.playerStats.maxHp) || 0);
+            const pct = ((state.playerStats && state.playerStats.armor) || 0) / 100;
+            return Math.floor(base * pct);
+        }
+
+        // Re-derive the pool after max HP or the armour stat changes.
+        // gainNew=true credits the player for the growth (used when picking a card);
+        // gainNew=false only clamps (used on load, so a stale pool is not inflated).
+        function recalcArmorPool(gainNew) {
+            const nm = armorPoolMax();
+            const delta = nm - (state.armorMaxHp || 0);
+            state.armorMaxHp = nm;
+            if (state.armorHp == null) state.armorHp = nm;
+            else {
+                if (gainNew && delta > 0) state.armorHp += delta;
+                if (state.armorHp > nm) state.armorHp = nm;
+                if (state.armorHp < 0) state.armorHp = 0;
+            }
+            try { updateHUD(); } catch (e) {}
+        }
+
+        // Q017: pickups top the pool up. frac defaults to a full refill (Yt01's behaviour
+        // for repair kits, shield batteries and airdrops).
+        function refillArmorPool(frac) {
+            const nm = armorPoolMax();
+            state.armorMaxHp = nm;
+            const add = Math.ceil(nm * (frac == null ? 1 : frac));
+            state.armorHp = Math.min(nm, (state.armorHp || 0) + add);
+            try { updateHUD(); } catch (e) {}
+        }
+
         // Q011: the Adrenaline Rush damage bonus, in ONE place. shoot() multiplies by this
         // and the HUD meter displays this same value, so the number the player reads can
         // never disagree with the number the pipeline applies (audit defect D-05 was exactly
@@ -6558,12 +6613,21 @@ window.addEventListener('unhandledrejection', function(e) {
             }
             // v1.5: Armor shield pool — starts full at run start (or resume)
             // Fix 5: Aegis gives 20 base armor pool even if player has no armor cards
-            const _aegisBonus = (!resume && useAegis && state.playerStats.armor === 0) ? 20 : 0;
+            // Q018: Aegis Kit grants a base pool when you own no armour cards, so the bar
+            // and the recharge actually have something to work with. Only on a fresh run —
+            // Yt03's guard, so resuming a save is never overwritten by the consumable.
+            const _aegisBonus = (!resume && useAegis && state.playerStats.armor === 0)
+                ? CONFIG.armor.aegisBasePool : 0;
             if (_aegisBonus > 0) { state.playerStats.armor += _aegisBonus; }
-            state.armorHp = resume
-                ? (typeof opts.resume.armorHp === 'number' ? opts.resume.armorHp : state.playerStats.armor)
-                : state.playerStats.armor;
-            state.armorMaxHp = state.playerStats.armor; // tracks max for bar display
+            // Q016: the pool is derived (floor(maxHp * armor/100)), not a copy of the stat.
+            recalcArmorPool(false);
+            if (resume && typeof opts.resume.armorHp === 'number') {
+                state.armorHp = Math.min(opts.resume.armorHp, state.armorMaxHp || 0);
+            } else if (!resume) {
+                // recalcArmorPool(false) deliberately only clamps — it must not invent
+                // pool out of nowhere — so a fresh run is filled explicitly here.
+                state.armorHp = state.armorMaxHp || 0;
+            }
             state.reviveAvailable = (meta.revive || 0) > 0;
             if (!resume) state.continuesThisRun = 0;
             state.surgeActive = false;
@@ -6892,9 +6956,9 @@ window.addEventListener('unhandledrejection', function(e) {
             const kind = kinds[Math.floor(Math.random() * kinds.length)];
             if (kind === 'repair') {
                 player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.45));
-                // v1.5: repair kit also fully restores armor pool
-                const _am = state.armorMaxHp || state.playerStats.armor || 0;
-                if (_am > 0) state.armorHp = _am;
+                // Q017: repair kit fully restores the armour pool
+                const _am = state.armorMaxHp || 0;
+                if (_am > 0) refillArmorPool(1);
                 try { createHealEffect(player.mesh.position); } catch (e) {}
                 showUpgradeNotification('❤️ Repair kit +45% HP' + (_am > 0 ? ' + Armor restored' : ''));
             } else if (kind === 'overcharge') {
@@ -7112,11 +7176,22 @@ window.addEventListener('unhandledrejection', function(e) {
                     try { updateHUD(); } catch (err) {}
                 }
             }
-            // v1.5: Armor regen — slow passive recovery (0.5 armor/s base + 0.25 per regen point)
-            const armorMax = state.armorMaxHp || state.playerStats.armor || 0;
-            if (armorMax > 0 && (state.armorHp || 0) < armorMax) {
-                const armorRegenRate = 0.5 + (regenNow * 0.25);
-                state.armorHp = Math.min(armorMax, (state.armorHp || 0) + armorRegenRate * dt);
+            // Q016: armour recharge — Yt03's model. Recharge only starts after
+            // CONFIG.armor.regenDelay seconds without taking damage, then refills
+            // regenPerSec of the pool per second (with a small floor so a tiny pool still
+            // recovers). Replaces Yt02's continuous 0.5 + 0.25*regen trickle, which let
+            // armour behave as a second health bar with no reason to ever play carefully.
+            if ((state.armorMaxHp || 0) > 0 && (state.armorHp || 0) < state.armorMaxHp) {
+                const sinceDmg = (state.runTime || 0) - (state.lastDamagedAt || 0);
+                if (sinceDmg >= CONFIG.armor.regenDelay) {
+                    const rate = Math.max(CONFIG.armor.regenFloor, state.armorMaxHp * CONFIG.armor.regenPerSec);
+                    state.armorHp = Math.min(state.armorMaxHp, (state.armorHp || 0) + rate * dt);
+                    state._armorHud = (state._armorHud || 0) + dt;
+                    if (state._armorHud > 0.2) {
+                        state._armorHud = 0;
+                        try { updateHUD(); } catch (err) {}
+                    }
+                }
             }
 
             // Enhanced Auto-aim with Sticky Targeting
@@ -8394,8 +8469,9 @@ window.addEventListener('unhandledrejection', function(e) {
             player.maxHp = state.playerStats.maxHp;
             player.hp = Math.ceil(player.maxHp * 0.5);
             // v1.5 + Fix2: restore armor pool using updated stats (now includes archetype)
-            state.armorMaxHp = state.playerStats.armor;
-            state.armorHp    = state.playerStats.armor;
+            // Q016: revive rebuilds the pool from the derived max, full
+            recalcArmorPool(false);
+            state.armorHp = state.armorMaxHp;
             try { syncPlayerTankParts(); } catch (e) {}
             player.mesh.position.set(x, 0, z);
             state.invulnUntil = (state.runTime || 0) + 3;
@@ -9418,11 +9494,12 @@ function applyUpgrade(up){
                 if (_b.damage)    state.playerStats.damage    = (state.playerStats.damage    || 100) + _b.damage;
                 if (_b.fireRate)  state.playerStats.fireRate  = (state.playerStats.fireRate  || 100) + _b.fireRate;
                 if (_b.crit)      state.playerStats.crit      = (state.playerStats.crit      || 0)   + _b.crit;
+                // Q016/Q017: an armour grant re-derives the pool and credits the growth
                 if (_b.armor)     { state.playerStats.armor   = (state.playerStats.armor     || 0)   + _b.armor;
-                                    state.armorMaxHp = state.playerStats.armor;
-                                    state.armorHp = Math.min(state.playerStats.armor, (state.armorHp || 0) + _b.armor); }
+                                    recalcArmorPool(true); }
                 if (_b.maxHp)     { state.playerStats.maxHp   = (state.playerStats.maxHp    || 100) + _b.maxHp;
-                                    if (player) { player.maxHp = state.playerStats.maxHp; player.hp = Math.min(player.hp + _b.maxHp, player.maxHp); } }
+                                    if (player) { player.maxHp = state.playerStats.maxHp; player.hp = Math.min(player.hp + _b.maxHp, player.maxHp); }
+                                    recalcArmorPool(true); }   // Q016: pool is %-of-maxHp
                 if (_b.regen)     state.playerStats.regen     = (state.playerStats.regen     || 0)   + _b.regen;
                 if (_b.pierce)    state.playerStats.pierce    = (state.playerStats.pierce    || 0)   + _b.pierce;
                 if (_b.multishot) state.playerStats.multishot = (state.playerStats.multishot || 0)   + _b.multishot;
@@ -9447,10 +9524,12 @@ function applyUpgrade(up){
             player.hp = Math.min(player.hp + up.amount, player.maxHp);
         }
     } else if (up.stat === 'armor') {
-        // v1.5: armor card expands the shield pool AND fills the added amount immediately
+        // Q016/Q017: an armour card grows the pool and the growth is credited immediately
         state.playerStats.armor += up.amount;
-        state.armorMaxHp = state.playerStats.armor;
-        state.armorHp = Math.min(state.playerStats.armor, (state.armorHp || 0) + up.amount);
+        recalcArmorPool(true);
+    } else if (up.stat === 'maxHp') {
+        state.playerStats.maxHp = (state.playerStats.maxHp || 100) + up.amount;
+        recalcArmorPool(true);   // Q016: a bigger hull means a bigger pool
     } else {
         state.playerStats[up.stat] = (state.playerStats[up.stat] || 0) + up.amount;
     }

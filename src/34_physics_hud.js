@@ -68,11 +68,22 @@
                     try { updateHUD(); } catch (err) {}
                 }
             }
-            // v1.5: Armor regen — slow passive recovery (0.5 armor/s base + 0.25 per regen point)
-            const armorMax = state.armorMaxHp || state.playerStats.armor || 0;
-            if (armorMax > 0 && (state.armorHp || 0) < armorMax) {
-                const armorRegenRate = 0.5 + (regenNow * 0.25);
-                state.armorHp = Math.min(armorMax, (state.armorHp || 0) + armorRegenRate * dt);
+            // Q016: armour recharge — Yt03's model. Recharge only starts after
+            // CONFIG.armor.regenDelay seconds without taking damage, then refills
+            // regenPerSec of the pool per second (with a small floor so a tiny pool still
+            // recovers). Replaces Yt02's continuous 0.5 + 0.25*regen trickle, which let
+            // armour behave as a second health bar with no reason to ever play carefully.
+            if ((state.armorMaxHp || 0) > 0 && (state.armorHp || 0) < state.armorMaxHp) {
+                const sinceDmg = (state.runTime || 0) - (state.lastDamagedAt || 0);
+                if (sinceDmg >= CONFIG.armor.regenDelay) {
+                    const rate = Math.max(CONFIG.armor.regenFloor, state.armorMaxHp * CONFIG.armor.regenPerSec);
+                    state.armorHp = Math.min(state.armorMaxHp, (state.armorHp || 0) + rate * dt);
+                    state._armorHud = (state._armorHud || 0) + dt;
+                    if (state._armorHud > 0.2) {
+                        state._armorHud = 0;
+                        try { updateHUD(); } catch (err) {}
+                    }
+                }
             }
 
             // Enhanced Auto-aim with Sticky Targeting
@@ -1350,8 +1361,9 @@
             player.maxHp = state.playerStats.maxHp;
             player.hp = Math.ceil(player.maxHp * 0.5);
             // v1.5 + Fix2: restore armor pool using updated stats (now includes archetype)
-            state.armorMaxHp = state.playerStats.armor;
-            state.armorHp    = state.playerStats.armor;
+            // Q016: revive rebuilds the pool from the derived max, full
+            recalcArmorPool(false);
+            state.armorHp = state.armorMaxHp;
             try { syncPlayerTankParts(); } catch (e) {}
             player.mesh.position.set(x, 0, z);
             state.invulnUntil = (state.runTime || 0) + 3;
