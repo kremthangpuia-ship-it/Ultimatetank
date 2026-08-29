@@ -446,6 +446,44 @@ setTimeout(() => {
   check('B12 (Q047) cover takes exactly two player shells at any level; enemies take longer', b12ok,
         r12.__err ? r12.__err : JSON.stringify(r12));
 
+  // --- behaviour 13 (Q125/Q117): save migration and validation ---
+  const b13 = ev(`(function(){
+    try {
+      var out = {};
+      // old save carrying the retired 'ice' skin id, schema v3
+      var old = { v: 3, coins: 1200, skins: { owned: ['amber', 'ice'], selected: 'ice' },
+                  meta: { hp: 3 }, achUnlocked: ['first_blood'], casual: { best: 500, saves: [], auto: null } };
+      var m = sanitizeSave(migrateSave(JSON.parse(JSON.stringify(old))));
+      out.renamed = { owned: m.skins.owned, selected: m.skins.selected, v: m.v };
+      out.preserved = { coins: m.coins, ach: m.achUnlocked, meta: m.meta };
+      // v2 save: a single snapshot must land in the auto slot
+      var v2 = { v: 2, coins: 10, casual: { best: 0, snapshot: { level: 7 } } };
+      out.v2 = sanitizeSave(migrateSave(v2)).casual.auto;
+      // hostile input: wrong types, nulls, negatives — must degrade, never throw
+      var bad = { v: 'three', coins: 'lots', meta: null, skins: 42, achUnlocked: 'nope',
+                  consumables: { lucky: -5, aegis: 'x' }, fpsMode: 144, quality: 'ultra' };
+      var b = sanitizeSave(migrateSave(bad));
+      out.bad = { coins: b.coins, meta: b.meta, owned: b.skins.owned, selected: b.skins.selected,
+                  ach: b.achUnlocked, lucky: b.consumables.lucky, aegis: b.consumables.aegis,
+                  fps: b.fpsMode, quality: b.quality, v: b.v };
+      // migrateSave must reject non-objects rather than throw
+      out.rejectsNull = migrateSave(null) === null;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r13 = parsed(b13);
+  const b13ok = !r13.__err
+    && r13.renamed.selected === 'glacier' && r13.renamed.owned.join(',') === 'amber,glacier'
+    && r13.renamed.v === 4
+    && r13.preserved.coins === 1200 && r13.preserved.ach[0] === 'first_blood' && r13.preserved.meta.hp === 3
+    && r13.v2 && r13.v2.level === 7
+    && r13.bad.coins === 0 && r13.bad.lucky === 0 && r13.bad.aegis === 0
+    && r13.bad.selected === 'amber' && Array.isArray(r13.bad.owned) && r13.bad.owned.length === 0
+    && Array.isArray(r13.bad.ach) && r13.bad.fps === 60 && r13.bad.quality === 'auto'
+    && r13.rejectsNull === true;
+  check('B13 (Q125/Q117) saves migrate ice->glacier, v2 slots carry over, bad fields degrade', b13ok,
+        r13.__err ? r13.__err : JSON.stringify(r13));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

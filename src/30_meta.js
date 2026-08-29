@@ -51,7 +51,9 @@
             { id:'amber',   name:'Amber Strike',  color:0xf59e0b, cost:0,     archetype:'Balanced',    arch:{ maxHp:0,  damage:0,   speed:0,   armor:0,  regen:0   }, archdesc:'Balanced stats — ideal starting hull.' },
             { id:'crimson', name:'Crimson Fang',  color:0xef4444, cost:2000,  archetype:'Striker',     arch:{ maxHp:-15,damage:25,  speed:10,  armor:0,  regen:0   }, archdesc:'+25% DMG, +10% SPD — fragile but lethal.' },
             { id:'emerald', name:'Emerald Guard', color:0x10b981, cost:3500,  archetype:'Juggernaut',  arch:{ maxHp:40, damage:0,   speed:-8,  armor:10, regen:1   }, archdesc:'+40 HP, +10 Armor, +1 Regen — slow tank.' },
-            { id:'ice',     name:'Glacier',       color:0x60a5fa, cost:5000,  archetype:'Recon',       arch:{ maxHp:-10,damage:-10, speed:20,  armor:0,  regen:2   }, archdesc:'+20% SPD, +2 Regen — kite and outlast.' },
+            // Q125: this id was 'ice' in Yt01/Yt02 and 'glacier' in Yt03. Standardised on
+            // 'glacier'; migrateSave() renames the old id in existing saves.
+            { id:'glacier', name:'Glacier',       color:0x60a5fa, cost:5000,  archetype:'Recon',       arch:{ maxHp:-10,damage:-10, speed:20,  armor:0,  regen:2   }, archdesc:'+20% SPD, +2 Regen — kite and outlast.' },
             { id:'void',    name:'Void Walker',   color:0x8b5cf6, cost:7500,  archetype:'Tech',        arch:{ maxHp:0,  damage:15,  speed:0,   armor:0,  regen:0,  crit:10 }, archdesc:'+15% DMG, +10% Crit — crit build synergy.' },
             { id:'gold',    name:'24k Commander', color:0xfcd34d, cost:12000, archetype:'Sovereign',   arch:{ maxHp:25, damage:10,  speed:5,   armor:5,  regen:1   }, archdesc:'+25 HP, +10 DMG, +5 Armor — all-around elite.' },
         ];

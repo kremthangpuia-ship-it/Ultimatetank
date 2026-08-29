@@ -18,7 +18,7 @@ function getSpawnMultiplier(){
 function saveGame(){ // (uses the `store` defined at the top of the script)
     try {
         store.set('tank_save', JSON.stringify({
-            v: 3,
+            v: SAVE_VERSION,   // Q125: bumped 3 -> 4; migrateSave() handles the older shape
             coins: state.coins,
             meta: state.meta || {},          // v4: permanent Armory upgrades
             skins: state.skins || { owned: ['amber'], selected: 'amber' }, // v10
@@ -40,11 +40,109 @@ function saveGame(){ // (uses the `store` defined at the top of the script)
     } catch(e) { /* storage unavailable (private mode etc.) — ignore */ }
 }
 
+// ---------------------------------------------------------------------------
+// Q125 / Q117: SAVE MIGRATION AND VALIDATION
+//
+// The storage key stays 'tank_save', so existing players keep their coins, skins
+// and achievements. What changes is that a save is now run through a one-shot
+// migrator and a per-field shape check before anything reads it. Previously
+// loadGame() applied fields straight off the parsed object: a half-written or
+// hand-edited save could put a string where a number was expected, and the
+// failure would surface later, somewhere far from the cause.
+//
+// The rule is that a damaged field loses only itself. A bad 'coins' resets coins
+// to 0; it must never cost the player their skins or achievements, and it must
+// never throw.
+// ---------------------------------------------------------------------------
+const SAVE_VERSION = 4;
+
+// One-shot migration, applied in version order so future bumps stack cleanly.
+function migrateSave(d) {
+    if (!d || typeof d !== 'object') return null;
+    const from = (typeof d.v === 'number' && isFinite(d.v)) ? d.v : 0;
+
+    // v<=3 -> v4: the Glacier hull was 'ice' in Yt01/Yt02 and 'glacier' in Yt03.
+    // Both ids pointed at the same tank, so saves carrying the old id are renamed
+    // rather than discarded — that is defect C29, defused.
+    // v<=2 -> v3: a single 'snapshot' slot became the named-slot list plus an auto slot.
+    // This has to happen here rather than in loadGame(), because sanitizeSave() always
+    // stamps v = SAVE_VERSION — by the time loadGame reads the object the original
+    // version number is gone, and the legacy 'snapshot' field has been dropped.
+    if (from < 3 && d.casual && typeof d.casual === 'object') {
+        if (d.casual.snapshot && !d.casual.auto) d.casual.auto = d.casual.snapshot;
+        if (!Array.isArray(d.casual.saves)) d.casual.saves = [];
+    }
+
+    if (from < 4) {
+        const fixId = id => (id === 'ice') ? 'glacier' : id;
+        if (d.skins && typeof d.skins === 'object') {
+            if (Array.isArray(d.skins.owned)) d.skins.owned = d.skins.owned.map(fixId);
+            if (typeof d.skins.selected === 'string') d.skins.selected = fixId(d.skins.selected);
+        }
+    }
+
+    d.v = SAVE_VERSION;
+    return d;
+}
+
+// Per-field type guards. Every field gets a default, so a missing or wrong-typed
+// value degrades to "as if the player never had it" instead of propagating.
+function sanitizeSave(d) {
+    const num = (x, def, min) => (typeof x === 'number' && isFinite(x) && x >= (min == null ? -Infinity : min)) ? x : def;
+    const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
+    const arr = (x) => Array.isArray(x) ? x : [];
+    const bool = (x, def) => (typeof x === 'boolean') ? x : def;
+
+    const defConsumables = { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 };
+    const c = obj(d.consumables);
+
+    return {
+        v: SAVE_VERSION,
+        coins: num(d.coins, 0, 0),
+        meta: obj(d.meta),
+        skins: {
+            owned: arr(d.skins && d.skins.owned).filter(s => typeof s === 'string'),
+            selected: (d.skins && typeof d.skins.selected === 'string') ? d.skins.selected : 'amber'
+        },
+        casual: {
+            best: num(d.casual && d.casual.best, 0, 0),
+            auto: (d.casual && d.casual.auto) || null,
+            saves: arr(d.casual && d.casual.saves)
+        },
+        stats: obj(d.stats),
+        achUnlocked: arr(d.achUnlocked).filter(a => typeof a === 'string'),
+        daily: d.daily || null,
+        musicEnabled: bool(d.musicEnabled, true),
+        quality: (d.quality === 'low' || d.quality === 'high') ? d.quality : 'auto',
+        tutorialTips: obj(d.tutorialTips),
+        hapticsEnabled: bool(d.hapticsEnabled, true),
+        leftHanded: bool(d.leftHanded, false),
+        reduceShake: bool(d.reduceShake, false),
+        reduceFlash: bool(d.reduceFlash, false),
+        damageNumbers: bool(d.damageNumbers, true),
+        combatPopups: bool(d.combatPopups, true),
+        fpsMode: (d.fpsMode === 30) ? 30 : 60,
+        levels: { best: num(d.levels && d.levels.best, 0, 0) },
+        progress: { maxCleared: num(d.progress && d.progress.maxCleared, 1, 1) },
+        consumables: {
+            lucky: num(c.lucky, defConsumables.lucky, 0),
+            headstart: num(c.headstart, defConsumables.headstart, 0),
+            reroll: num(c.reroll, defConsumables.reroll, 0),
+            overcharge: num(c.overcharge, defConsumables.overcharge, 0),
+            aegis: num(c.aegis, defConsumables.aegis, 0)
+        }
+    };
+}
+
 function loadGame(){
     // FIX (Tier 1): try/catch — a corrupt save must never crash boot
     try {
-        let d = JSON.parse(store.get('tank_save'));
-        if(!d) return;
+        let raw = JSON.parse(store.get('tank_save'));
+        if(!raw) return;
+        // Q125/Q117: migrate first (renames, defaults), then validate the shape. After
+        // this point every field is present and correctly typed, so the assignments
+        // below no longer need their own defensive defaults.
+        let d = sanitizeSave(migrateSave(raw));
         state.coins = d.coins || 0;
         state.meta = d.meta || {}; // v4: permanent Armory upgrades
         state.skins = d.skins || { owned: ['amber'], selected: 'amber' };
@@ -68,13 +166,10 @@ function loadGame(){
         if (d.combatPopups === false) state.combatPopups = false;
         if (d.fpsMode === 30) state.fpsMode = 30;
         state.maxCleared = (d.progress && d.progress.maxCleared) || 1; // v13
-        if (d.v === 3) { // v13: named save slots + auto slot
-            state.casualSaves = (d.casual && d.casual.saves) || [];
-            state.autoSave = (d.casual && d.casual.auto) || null;
-        } else { // migrate v2 single snapshot -> auto slot
-            state.casualSaves = [];
-            state.autoSave = (d.casual && d.casual.snapshot) || null;
-        }
+        // Q125/Q117: version handling now lives in migrateSave(). By this point d is
+        // already migrated and sanitized, so these are plain reads with no branching.
+        state.casualSaves = d.casual.saves;
+        state.autoSave = d.casual.auto;
     } catch(e) { /* corrupt save ignored */ }
 }
 
