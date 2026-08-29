@@ -484,6 +484,33 @@ setTimeout(() => {
   check('B13 (Q125/Q117) saves migrate ice->glacier, v2 slots carry over, bad fields degrade', b13ok,
         r13.__err ? r13.__err : JSON.stringify(r13));
 
+  // --- behaviour 14 (Q044): biome change is gradual and grants safety windows ---
+  const b14 = ev(`(function(){
+    try {
+      var BC = CONFIG.biome, out = { cfg: BC, biomeCount: BIOMES.length };
+      if (!player) player = { isPlayer:true, isDead:false, hp:100, maxHp:100,
+                              mesh:{ position:{x:0,y:0,z:0}, traverse:function(){} }, updateHpBar:function(){} };
+      state.runTime = 200; state.spawnSafeUntil = 0; state.enemyFireMuteUntil = 0;
+      state.currentBiome = 0; state.pendingBiome = null;
+      startBiomeMorph(3);
+      out.spawnSafeUntil = state.spawnSafeUntil;              // 200 + 3
+      out.fireMuteUntil = state.enemyFireMuteUntil;           // 200 + 1.5
+      out.morphDur = biomeBlend ? biomeBlend.dur : null;
+      out.morphStartDelta = biomeBlend ? null : null;
+      out.currentBiome = state.currentBiome;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r14 = parsed(b14);
+  const b14ok = !r14.__err
+    && r14.biomeCount === 10
+    && r14.cfg.changeEveryLevels === 3 && r14.cfg.morphDurationMs === 10000
+    && r14.cfg.fireHushSec === 1.5 && r14.cfg.noSpawnSec === 3
+    && r14.spawnSafeUntil === 203 && Math.abs(r14.fireMuteUntil - 201.5) < 1e-9
+    && r14.morphDur === 10000 && r14.currentBiome === 3;
+  check('B14 (Q044) 10 biomes / 3 levels / 10s morph, with fire-hush and spawn pause', b14ok,
+        r14.__err ? r14.__err : JSON.stringify(r14));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

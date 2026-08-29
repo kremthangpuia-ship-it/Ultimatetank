@@ -355,6 +355,18 @@
             // makes armour a tactical resource rather than an infinite second health bar.
             // Stored on state.armorHp / state.armorMaxHp so Yt02's full-height HUD overlay
             // (Q020) keeps working unchanged.
+            // Q044: biome transitions. Ten realms, one every three levels, and the change
+            // must be gradual — the terrain morphs over ten seconds rather than snapping.
+            // Enemy fire is hushed for 1.5s and new spawns pause for 3s so a realm change
+            // is never the moment you get deleted. The minimap keeps its fixed background;
+            // no realm tint is applied to the radar.
+            biome: {
+                changeEveryLevels: 3,
+                morphDelayMs: 900,      // beat before the morph begins
+                morphDurationMs: 10000, // ten-second gradual terrain change
+                fireHushSec: 1.5,
+                noSpawnSec: 3
+            },
             // Q047: destructible cover, measured in player shells rather than raw HP so it
             // stays meaningful at every level. See coverHitCost() in 24_chunks.js.
             cover: {

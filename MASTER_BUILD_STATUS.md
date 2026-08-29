@@ -16,7 +16,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 
 ## Verified right now
 
-`node tools/check.js` → **22/22 checks passed**.
+`node tools/check.js` → **26/26 checks passed**.
 
 | Check | Result |
 |---|---|
@@ -37,6 +37,10 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 | **B8** missile volley caps at 10, extra stacks become overload (Q013) | PASS |
 | **B9** Adrenaline is 60s, +5%/stack damage is real, meter matches movement (Q011) | PASS |
 | **B10** armour pool derives from max HP, stamps delay clock, refills (Q016/17/18) | PASS |
+| **B11** Warlord shells at 18 and interval 6.4s; other bosses untouched (Q039) | PASS |
+| **B12** cover takes exactly two player shells at any level (Q047) | PASS |
+| **B13** saves migrate `ice`→`glacier`, v2 slots carry over, bad fields degrade (Q125/Q117) | PASS |
+| **B14** 10 biomes / 3 levels / 10s morph, with fire-hush and spawn pause (Q044) | PASS |
 
 `tools/split.js` round-trips the Yt02 game script **exactly** (423,170 chars both ways), so the
 decomposition into `src/` is provably lossless. The built file differs from Yt02 only by the
@@ -71,13 +75,18 @@ intended deltas listed below.
 | **Q031** | `CONFIG.enemyDmg {base,slope,mid,late}` + `enemyCurvePresets` (Yt03 default, Yt01 easy). Yt02's stray `*1.5` removed (**D-04**) | `src/10_data.js`, `src/28_pause_boss.js` |
 | **Q032** | `CONFIG.enemyHp {base,perLevel}` — enemy HP now +3%/level | `src/10_data.js`, `src/28_pause_boss.js` |
 | **Q115 / Q022** | Both were already correct in the Yt02 base; B6 and B7 now guard them against regression | — |
+| **Q039** | Warlord shells 36→18, barrage interval 3.2s→6.4s (Yt03's nerf). Other five bosses untouched | `src/10_data.js`, `src/28_pause_boss.js` |
+| **Q044** | `CONFIG.biome`: 10 realms, every 3 levels, 10s gradual morph. Fire-hush 1.5s and spawn pause 3s now applied on realm change, not just revive. Radar tint confirmed absent | `src/10_data.js`, `src/22_biome.js` |
+| **Q047** | Cover normalised to "player shells" and charged at impact against current shell damage — exactly two player shells break any tree or rock at any level; weaker enemies need more hits | `src/10_data.js`, `src/24_chunks.js`, `src/34_physics_hud.js` |
+| **Q117 / Q125** | Schema 3→4 behind `SAVE_VERSION`. `migrateSave()` runs versioned migrations (`ice`→`glacier`, v2 snapshot→auto slot); `sanitizeSave()` applies per-field type guards so a bad field loses only itself | `src/40_persist_polish.js`, `src/30_meta.js` |
 
 ---
 
 ## Still to implement
 
 The 131 answers break down as: **~62 "identical, keep as-is"** (no code change) and **~69 requiring
-work**. Of the latter, **26 are done** — every P0 group is complete. The remainder, grouped:
+work**. Of the latter, **32 are done** — every P0 group is complete, plus Q039, Q044, Q047,
+Q117 and Q125 from P1. The remainder, grouped:
 
 **P0 / high impact — COMPLETE**
 
@@ -91,13 +100,9 @@ pool. A fresh run now fills explicitly.
 
 **P1**
 - **Q038** port Yt01's six bespoke boss phase fights + Yt03 generic enrage fallback
-- **Q039** Warlord full nerf (projectile speed 18, interval 6.4s)
-- **Q044** biome transition: 10s gradual morph, 1.5s fire-hush, 3s no-spawn, no radar tint
-- **Q047** destructible cover HP scales — two player hits at any level
 - **Q030/Q138** tank-part system: Yt01 framework + Yt03 12-evo parts, single barrel regardless of multishot
 - **Q062/Q064/Q116** Armory + Workshop tabs, consumable price loop (×3 every 5, reset at 6), tech tree with save persistence
 - **Q075/Q129** 3-lane combat meter + 5-column pause grid merge
-- **Q125/Q117** save migrator (`ice`→`glacier`) + load-time validator
 
 **P2**
 - **Q003** PWA package (manifest + sw.js + icons)

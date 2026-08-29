@@ -72,7 +72,14 @@
                 const parts = k.split(',');
                 return { k, cx: +parts[0], cz: +parts[1], d: ((+parts[0]) * CHUNK - px) ** 2 + ((+parts[1]) * CHUNK - pz) ** 2 };
             }).sort((a, b) => a.d - b.d);
-            biomeBlend = { from, to, t: 0, e: 0, start: performance.now() + 900, dur: 11000, tileI: 0, particlesSwapped: false, finalPass: false, frameFlip: 0, heavyFrame: false, queuedRebuild: false, waveOrder };
+            // Q044: timing from CONFIG, and the safety windows are applied here rather than
+            // left to the caller. hushHostileFire() and the spawn pause already existed for
+            // revive (Q073); a realm change is the other moment a player should not be
+            // punished for something the game itself initiated.
+            const BC = CONFIG.biome;
+            try { hushHostileFire(BC.fireHushSec); } catch (e) {}
+            state.spawnSafeUntil = (state.runTime || 0) + BC.noSpawnSec;
+            biomeBlend = { from, to, t: 0, e: 0, start: performance.now() + BC.morphDelayMs, dur: BC.morphDurationMs, tileI: 0, particlesSwapped: false, finalPass: false, frameFlip: 0, heavyFrame: false, queuedRebuild: false, waveOrder };
             state.currentBiome = idx;
             biomeBlend.rebuildQueue = []; // drained: tasks are tracked in chunkTasks now
             // Name waits until the realm has finished loading (see markBiomeArrival).
