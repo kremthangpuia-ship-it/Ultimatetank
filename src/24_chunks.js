@@ -297,7 +297,6 @@
                 state.cameraShake = Math.max(state.cameraShake, 0.2);
             }
             lifeStats().destroyed++; // v23
-            bumpDaily('destroyed', 1);
             const ci = chunk.colliders.indexOf(dst);
             if (ci >= 0) chunk.colliders.splice(ci, 1);
             for (const g of dst.geos) {

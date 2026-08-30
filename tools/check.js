@@ -784,6 +784,17 @@ setTimeout(() => {
   check('B20 (Q129) clicking a pause evolution row opens its detail page and highlights it', b20ok,
         r20.__err ? r20.__err : JSON.stringify(r20));
 
+  // --- behaviour 21 (Q066): daily challenges removed outright ---
+  // The stub was a no-op in all three legacy builds, so nothing observable changes.
+  // This guards against it creeping back, and against a call site being deleted in a
+  // way that took neighbouring code with it.
+  const b21ok = !html.includes('function bumpDaily')
+    && !html.includes('bumpDaily(')
+    && html.includes('function checkAchievements')          // survived the line it shared
+    && html.includes('function trackKill');   // survived: its body held 4 of the sites
+  check('B21 (Q066) daily-challenge stub and all 8 call sites removed, neighbours intact', b21ok,
+        `function bumpDaily present=${html.includes('function bumpDaily')}, call sites present=${html.includes('bumpDaily(')}, checkAchievements=${html.includes('function checkAchievements')}, trackKill=${html.includes('function trackKill')}`);
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

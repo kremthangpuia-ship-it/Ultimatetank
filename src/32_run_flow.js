@@ -402,7 +402,6 @@
                 if (state.level % 5 === 0) state.bossPending = true;
 
                 lifeStats().maxLevel = Math.max(lifeStats().maxLevel, state.level); // v23
-                bumpDaily('maxLevel', state.level);
                 if (state.level > (state.maxCleared || 1)) { // v13: level-select progression
                     state.maxCleared = state.level;
                     try { saveGame(); } catch (e) {}

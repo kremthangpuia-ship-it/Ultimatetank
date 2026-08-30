@@ -999,7 +999,6 @@
             lifeStats().distance += __d;
             lifeStats().playTime += dt;
             state.runDist = (state.runDist || 0) + __d;
-            bumpDaily('runDistBest', state.runDist);
             _lastPhysicsCost = performance.now() - _physT0; // v21
         }
 
@@ -1260,7 +1259,7 @@
         function endGame() {
             state.isPlaying = false;
             state.gamePhase = 'gameover';
-            bumpDaily('runCoinsBest', state.runCoins || 0); checkAchievements(); // v23
+            checkAchievements(); // v23
             SFX.engineStop(); SFX.ambientStop(); SFX.musicStop(); // v23+v24
             needsRender = true; // FIX (Tier 3)
             try { saveGame(); } catch(e) {} // FIX (Coins): persist coins between sessions

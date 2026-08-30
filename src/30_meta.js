@@ -384,7 +384,10 @@
         }
 
         // ============================================
-        // v23: LIFETIME STATS + ACHIEVEMENTS + DAILY CHALLENGES
+        // v23: LIFETIME STATS + ACHIEVEMENTS
+        // Q066: the daily-challenge system is removed outright. It was a no-op stub in
+        // all three legacy builds (bumpDaily did nothing), and the decision is to drop
+        // it rather than finish it, so both the stub and its 8 call sites are gone.
         // ============================================
         const ACHIEVEMENTS = [
             { id:'firstBlood', icon:'🩸', name:'First Blood',      desc:'Destroy your first enemy tank', goal:1,    stat:'kills',      reward:100 },
@@ -449,16 +452,12 @@
                 }
             }
         }
-        function bumpDaily(stat, value) { /* v26.9: daily challenges removed */ }
         function trackKill(isBoss, isCrit, payout) { // v23
             const st = lifeStats();
             st.kills++; st.coinsEarned += payout;
             if (isCrit) st.crits++;
             if (state.combo > st.maxCombo) st.maxCombo = state.combo;
             if (isBoss) { st.bossKills++; if (state.diffMult && state.diffMult.dmg >= 1.6) st.bossNightmare++; }
-            bumpDaily('kills', 1);
-            if (isCrit) bumpDaily('crits', 1);
-            if (isBoss) bumpDaily('bossKills', 1);
             if (isBoss) {
                 state.runBossKills = (state.runBossKills || 0) + 1;
                 // Boss Rush mode progression
@@ -476,7 +475,6 @@
                     }
                 }
             }
-            bumpDaily('runCoinsBest', state.runCoins || 0);
             checkAchievements();
         }
         function renderAwards() { // v23 / v26.9: achievements only
