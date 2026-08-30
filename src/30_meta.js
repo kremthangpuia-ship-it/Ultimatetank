@@ -467,7 +467,11 @@
                         // All 6 bosses defeated — Victory!
                         setTimeout(() => {
                             try { showBossBanner('🏆 BOSS RUSH COMPLETE! All 6 Bosses Defeated!'); } catch(e2) {}
-                            setTimeout(() => { try { showGameOver(); } catch(e2) {} }, 3500);
+                            // Yt02 called showGameOver(), another name that exists nowhere in
+                            // the shipped code — the victory run hung in the arena forever.
+                            // endGame() is the real run-summary path (it already labels the
+                            // mode as BOSS RUSH when an element carries that id).
+                            setTimeout(() => { try { endGame(); } catch(e2) {} }, 3500);
                         }, 1200);
                     } else {
                         state.bossCooldownUntil = (state.runTime || 0) + 5;

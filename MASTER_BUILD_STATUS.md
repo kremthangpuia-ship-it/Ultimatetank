@@ -16,7 +16,17 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 
 ## Verified right now
 
-`node tools/check.js` → **33/33 checks passed**.
+`node tools/check.js` → **36/36 gates passed** (B1–B22 + boot + deep gates
+`tools/test-undef.js` and `tools/test-gameplay.js`; `--fast` skips the two deep gates).
+
+- `tools/test-undef.js` — ESLint `no-undef`/`no-redeclare` scan over the concatenated build:
+  **0 findings** in game code. This is the static proof that no identifier (like `_dispDmg`)
+  can be read from a scope where it was never declared.
+- `tools/test-gameplay.js` — **20/20** scripted playthrough stages in jsdom: start → 360 live
+  physics frames → kill all 33 enemy types → play every queued level-up card → boss spawn/
+  fight/kill/reward → pause/resume → every crate kind + black market → death → coin revive →
+  full 6-boss Boss Rush to victory → settings round-trip → reset-data → skid marks, all while
+  asserting zero console/window errors and that the error overlay never appears.
 
 | Check | Result |
 |---|---|
@@ -95,6 +105,27 @@ intended deltas listed below.
 | **Q038** | Yt01's six bespoke boss phase fights ported (warlord, colossus, nova, fortress added; titan and tempest already had theirs) plus Yt03's generic enrage as an automatic fallback for any boss without a bespoke script | `src/28_pause_boss.js`, `src/34_physics_hud.js` |
 | **Q064** | Consumable pricing is now a repeating 5-step loop at ×3 per step instead of an uncapped `~1.58^n`. The 6th Aegis Kit costs the same as the 1st. Armory items keep their original growth | `src/10_data.js`, `src/30_meta.js` |
 | **Q117 / Q125** | Schema 3→4 behind `SAVE_VERSION`. `migrateSave()` runs versioned migrations (`ice`→`glacier`, v2 snapshot→auto slot); `sanitizeSave()` applies per-field type guards so a bad field loses only itself | `src/40_persist_polish.js`, `src/30_meta.js` |
+
+---
+
+## Field-repair pass (post-freeze self-verification, 2026-08-30)
+
+Triggered by a real-device report of `ReferenceError: _dispDmg is not defined` — a stack
+trace that matches the bug commit `292e893` fixed. The report came from a **pre-fix
+downloaded copy** of the file (in the current build, the trace's line:col lands inside a
+comment in the repaired block). That justified a whole-class audit instead of a one-off
+confirm:
+
+| # | Latent defect (all inherited from the Yt02 base; every call site was silent inside try/catch per D-13) | Repair |
+|---|---|---|
+| R1 | **`showGameOver()` never existed** — Boss-Rush victory (all 6 bosses) showed the banner, then the run hung in the arena forever | call the real `endGame()` (`src/30_meta.js`) |
+| R2 | **`updateSettingsDisplay()` never existed** — the floating camera button toggled the mode but its icon refresh threw | call the live `syncHUDControls()` (`src/36_input_loop.js`) |
+| R3 | **`showScreen('home')` never existed** — "Reset all data" wiped progress, then raised the red error overlay instead of navigating home | `setScreenVisibility('start-screen', true)` + `updateHomeStats()` (`src/36_input_loop.js`) |
+| R4 | **`lowGraphicsActive()` never existed** — skid marks threw on every frame and never rendered; also the gate for Q118's later policy change | defined next to the quality governor, auto-mode aware (`src/16_audio_quality.js`) |
+| R5 | Harness bug: B22 compared `ev()`'s `{ok,v}` wrapper against a string and reported the fixed build as failing while the commit message claimed 34/34 | assertion unwraps the wrapper (`tools/check.js`) |
+
+R1–R4 were found by the new static gate and proven dead by the new dynamic gate before the
+repair; both gates are now part of the release run.
 
 ---
 

@@ -132,7 +132,7 @@
         try {
             document.getElementById('btn-camera-float').addEventListener('click', () => {
                 state.cameraMode = state.cameraMode === 'wide' ? 'follow' : 'wide';
-                try{updateSettingsDisplay();}catch(e){}
+                try{syncHUDControls();}catch(e){}
             });
         } catch(e) {}
         try {
@@ -348,7 +348,11 @@
             state.casualSaves = []; state.autoSave = null;
             showUpgradeNotification('All data reset.');
             closeSettings();
-            showScreen('home');
+            // Yt02 called showScreen('home') here, a function that never existed in any
+            // build — the navigation threw and raised the red error overlay right after a
+            // successful wipe. setScreenVisibility + updateHomeStats is the live idiom.
+            setScreenVisibility('start-screen', true);
+            try { updateHomeStats(); } catch(e) {}
         });
         document.getElementById('close-settings-panel').addEventListener('click', (e) => {
             e.stopPropagation();

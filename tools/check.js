@@ -823,5 +823,27 @@ setTimeout(() => {
   });
   console.log('-'.repeat(74));
   console.log(`${pass}/${results.length} checks passed`);
-  process.exit(pass === results.length ? 0 : 1);
+
+  // ------------------------------------------------- deep gates (skip with --fast)
+  // test-undef.js proves no identifier can throw an undeclared-variable ReferenceError
+  // (the _dispDmg defect class); test-gameplay.js plays a full scripted run.
+  if (process.argv.includes('--fast')) {
+    process.exit(pass === results.length ? 0 : 1);
+  }
+  const { execFileSync } = require('child_process');
+  for (const tool of ['test-undef.js', 'test-gameplay.js']) {
+    console.log(`\n>>> ${tool}`);
+    try {
+      execFileSync(process.execPath, [path.join(__dirname, tool), file], { stdio: 'inherit' });
+      console.log(`PASS  ${tool}`);
+      results.push({ name: tool, ok: true });
+    } catch (e) {
+      console.log(`FAIL  ${tool} (exit ${e.status})`);
+      results.push({ name: tool, ok: false });
+    }
+  }
+  console.log('-'.repeat(74));
+  const total = results.length;
+  console.log(`${results.filter(r => r.ok).length}/${total} total gates passed (incl. deep gates)`);
+  process.exit(results.every(r => r.ok) ? 0 : 1);
 }, 1500);

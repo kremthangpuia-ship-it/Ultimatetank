@@ -47,6 +47,14 @@
             needsRender = true;
         }
         function qualityLabel() { return state.quality === 'low' ? 'Low' : state.quality === 'high' ? 'High' : 'Auto'; }
+        // Shim for ported FX code (dropTrackMarks and friends gate on this). Yt01 defined
+        // it; the Yt02 base kept the call but lost the definition, so skid marks threw a
+        // ReferenceError inside their try/catch on every frame and never appeared.
+        // True when the EFFECTIVE quality is Low — pinned by the player or decided by the
+        // auto governor (same rule applyQuality() uses).
+        function lowGraphicsActive() {
+            return state.quality === 'low' || (state.quality === 'auto' && _autoApplied === 'low');
+        }
         function cycleQuality() {
             const order = ['auto', 'high', 'low'];
             const next = order[(order.indexOf(state.quality) + 1) % 3];

@@ -3137,6 +3137,14 @@ window.addEventListener('unhandledrejection', function(e) {
             needsRender = true;
         }
         function qualityLabel() { return state.quality === 'low' ? 'Low' : state.quality === 'high' ? 'High' : 'Auto'; }
+        // Shim for ported FX code (dropTrackMarks and friends gate on this). Yt01 defined
+        // it; the Yt02 base kept the call but lost the definition, so skid marks threw a
+        // ReferenceError inside their try/catch on every frame and never appeared.
+        // True when the EFFECTIVE quality is Low — pinned by the player or decided by the
+        // auto governor (same rule applyQuality() uses).
+        function lowGraphicsActive() {
+            return state.quality === 'low' || (state.quality === 'auto' && _autoApplied === 'low');
+        }
         function cycleQuality() {
             const order = ['auto', 'high', 'low'];
             const next = order[(order.indexOf(state.quality) + 1) % 3];
@@ -6278,7 +6286,11 @@ window.addEventListener('unhandledrejection', function(e) {
                         // All 6 bosses defeated — Victory!
                         setTimeout(() => {
                             try { showBossBanner('🏆 BOSS RUSH COMPLETE! All 6 Bosses Defeated!'); } catch(e2) {}
-                            setTimeout(() => { try { showGameOver(); } catch(e2) {} }, 3500);
+                            // Yt02 called showGameOver(), another name that exists nowhere in
+                            // the shipped code — the victory run hung in the arena forever.
+                            // endGame() is the real run-summary path (it already labels the
+                            // mode as BOSS RUSH when an element carries that id).
+                            setTimeout(() => { try { endGame(); } catch(e2) {} }, 3500);
                         }, 1200);
                     } else {
                         state.bossCooldownUntil = (state.runTime || 0) + 5;
@@ -9007,7 +9019,7 @@ window.addEventListener('unhandledrejection', function(e) {
         try {
             document.getElementById('btn-camera-float').addEventListener('click', () => {
                 state.cameraMode = state.cameraMode === 'wide' ? 'follow' : 'wide';
-                try{updateSettingsDisplay();}catch(e){}
+                try{syncHUDControls();}catch(e){}
             });
         } catch(e) {}
         try {
@@ -9223,7 +9235,11 @@ window.addEventListener('unhandledrejection', function(e) {
             state.casualSaves = []; state.autoSave = null;
             showUpgradeNotification('All data reset.');
             closeSettings();
-            showScreen('home');
+            // Yt02 called showScreen('home') here, a function that never existed in any
+            // build — the navigation threw and raised the red error overlay right after a
+            // successful wipe. setScreenVisibility + updateHomeStats is the live idiom.
+            setScreenVisibility('start-screen', true);
+            try { updateHomeStats(); } catch(e) {}
         });
         document.getElementById('close-settings-panel').addEventListener('click', (e) => {
             e.stopPropagation();
