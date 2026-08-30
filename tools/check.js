@@ -809,7 +809,7 @@ setTimeout(() => {
     } catch (e) { return 'threw: ' + e.message; }
   })()`);
   check('B22 updateHUD() completes without throwing (pause damage-cell path)',
-        b22 === '"ok"', typeof b22 === 'string' ? b22.slice(0,140) : String(b22));
+        b22.ok && b22.v === 'ok', String(b22.v).slice(0,140));
 
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
