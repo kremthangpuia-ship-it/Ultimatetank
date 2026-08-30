@@ -163,7 +163,11 @@ function renderEvoList(){
 
     el.innerHTML = combined.map(function(ev){
         const isActive = allEvoIds.indexOf(ev.id) >= 0;
-        const cls = isActive ? 'evo-active' : (evolutionProgress ? 'evo-partial' : 'evo-locked');
+        // Removed: a dead local here picked an evo-active / evo-partial / evo-locked class.
+        // It was computed and then discarded — the template uses rowCls, worked out
+        // separately below. It also had a live bug: it tested the evolutionProgress
+        // *function* for truthiness, which is always true, so its locked branch was
+        // unreachable. (B20 asserts this expression is gone from the shipped build.)
 
         // Progress fraction
         let prog = isActive ? '✓ ACTIVE' : '';
@@ -173,17 +177,42 @@ function renderEvoList(){
         if (!isActive && prog === '0/0') prog = '—';
 
         const rowCls = isActive ? 'pevo-row evo-active' : (prog && prog !== '—' ? 'pevo-row evo-partial' : 'pevo-row evo-locked');
-        return '<div class="' + rowCls + '">' +
+        // Q129: each row is the entry point to Yt01's detail page, so it carries the
+        // evolution id for the delegated handler and announces itself as clickable.
+        return '<div class="' + rowCls + '" data-evo="' + ev.id + '" role="button" tabindex="0">' +
             '<span class="pevo-icon">' + (ev.icon || '⚗') + '</span>' +
             '<span class="pevo-name">' + (ev.text || ev.id) + '</span>' +
             '<span class="pevo-prog">' + prog + '</span>' +
             '</div>';
     }).join('');
+
+    // Q129: one delegated listener rather than twelve, wired once. Delegating also means
+    // the rows stay clickable after every re-render without re-binding anything.
+    if (!el.dataset.wired) {
+        el.dataset.wired = '1';
+        el.addEventListener('click', function (e) {
+            const row = e.target.closest ? e.target.closest('[data-evo]') : null;
+            if (row) { try { openEvoDetail(row.getAttribute('data-evo')); } catch (err) {} }
+        });
+        el.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const row = e.target.closest ? e.target.closest('[data-evo]') : null;
+            if (row) { e.preventDefault(); try { openEvoDetail(row.getAttribute('data-evo')); } catch (err) {} }
+        });
+    }
 }
 
-function openEvoDetail(){
+function openEvoDetail(focusId){
     setScreenVisibility('evo-detail-screen', true);
     renderEvoDetailBody();
+    // Q129: when opened from a specific pause row, mark and scroll to that evolution.
+    state.evoDetailFocus = focusId || null;
+    if (!focusId) return;
+    const target = document.querySelector('[data-evo-detail="' + focusId + '"]');
+    if (target) {
+        target.classList.add('ec-focused');
+        try { target.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
+    }
 }
 function closeEvoDetail(){
     setScreenVisibility('evo-detail-screen', false);
@@ -235,7 +264,8 @@ function renderEvoDetailBody(){
         const badgeCls = isActive ? 'ec-badge badge-active' : (cardCls.includes('partial') ? 'ec-badge badge-partial' : 'ec-badge badge-locked');
         const badgeText = isActive ? '✓ ACTIVE' : (cardCls.includes('partial') ? 'IN PROGRESS' : 'LOCKED');
 
-        return '<div class="' + cardCls + '">' +
+        // Q129: the id lets openEvoDetail() highlight whichever row opened this page.
+        return '<div class="' + cardCls + '" data-evo-detail="' + ev.id + '">' +
             '<div class="ec-top">' +
                 '<span class="ec-icon">' + (ev.icon || '⚗') + '</span>' +
                 '<span class="ec-name">' + (ev.text || ev.id) + '</span>' +

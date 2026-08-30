@@ -1830,3 +1830,10 @@
         .pm-lane.pm-boost .pm-fill { background: #fbbf24; }
         .pm-lane.pm-slow  .pm-fill { background: #f97316; }
         .pm-lane.pm-arm   .pm-fill { background: #38bdf8; }
+
+        /* Q129: pause evolution rows are the entry point to the detail page, so they must
+           read as clickable, and the entry you came from must be obvious. */
+        .pevo-row { cursor: pointer; }
+        .pevo-row:hover { background: rgba(255,255,255,0.09); }
+        .pevo-row:focus-visible { outline: 2px solid #fbbf24; outline-offset: 1px; }
+        .ec-focused { outline: 2px solid #fbbf24; outline-offset: 2px; border-radius: 8px; }

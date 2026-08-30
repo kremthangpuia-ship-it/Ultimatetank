@@ -16,7 +16,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 
 ## Verified right now
 
-`node tools/check.js` → **31/31 checks passed**.
+`node tools/check.js` → **32/32 checks passed**.
 
 | Check | Result |
 |---|---|
@@ -46,6 +46,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 | **B17** Workshop tree works, Second Wind removed, ranks clamped on load (Q062/63/116) | PASS |
 | **B18** single barrel at any multishot, 12 evo fittings, no accumulation (Q030/138) | PASS |
 | **B19** one 3-lane meter in both hosts, cap + labels + countdown + throttle (Q075/129) | PASS |
+| **B20** clicking a pause evolution row opens its detail page and highlights it (Q129) | PASS |
 
 `tools/split.js` round-trips the Yt02 game script **exactly** (423,170 chars both ways), so the
 decomposition into `src/` is provably lossless. The built file differs from Yt02 only by the
@@ -84,7 +85,7 @@ intended deltas listed below.
 | **Q044** | `CONFIG.biome`: 10 realms, every 3 levels, 10s gradual morph. Fire-hush 1.5s and spawn pause 3s now applied on realm change, not just revive. Radar tint confirmed absent | `src/10_data.js`, `src/22_biome.js` |
 | **Q047** | Cover normalised to "player shells" and charged at impact against current shell damage — exactly two player shells break any tree or rock at any level; weaker enemies need more hits | `src/10_data.js`, `src/24_chunks.js`, `src/34_physics_hud.js` |
 | **Q075** | One 3-lane power meter (SPD/DMG/ARM) built from Yt03's layout, with Yt01's BOOST/SLOWED labels, cap-aware speed, and Yt02's countdown on the damage lane. The two duplicate HUD pills are gone — one component, two hosts, 0.15s refresh | `src/06_dom.html`, `src/01_styles.css`, `src/34_physics_hud.js` |
-| **Q129** | Yt02's 5-column / 10-cell pause grid was already present and correctly ordered; Yt03's meter lane is now embedded above it and force-refreshed on open so it never shows a stale HUD frame | `src/06_dom.html`, `src/28_pause_boss.js` |
+| **Q129** | Yt02's 5-column / 10-cell pause grid was already present and correctly ordered; Yt03's meter lane is now embedded above it and force-refreshed on open; and Yt01's tappable detail pages are wired — each pause row carries `data-evo`, one delegated click/Enter handler opens `openEvoDetail(id)` which highlights that entry. Also removed a dead local whose `evo-locked` branch was unreachable | `src/06_dom.html`, `src/28_pause_boss.js`, `src/38_cards_evos.js`, `src/01_styles.css` |
 | **Q030** | One barrel regardless of multishot count — the `extraBarrels` loop that added up to four is removed. The Yt01-style fitting framework and all 12 evolution fittings were already present and live (`evo_*` flags set on evolution grant); only the barrel rule was violated | `src/38_cards_evos.js` |
 | **Q138** | Verified already satisfied: `startMenuTankPreview()` guards on `menuTankPreview`, which is never nulled, so the preview renderer and canvas are built once per page load and reused — that is Yt02's behaviour | `src/30_meta.js` |
 | **Q062/Q063** | Armory and Workshop are separate tabs (not folded together). Yt03's 5-node tree ported with its own cost ladder. **Second Wind removed entirely** — revive is coin-driven | `src/06_dom.html`, `src/30_meta.js` |

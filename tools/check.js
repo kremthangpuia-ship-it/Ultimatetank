@@ -745,6 +745,45 @@ setTimeout(() => {
   check('B19 (Q075/Q129) one 3-lane meter in both hosts, cap + labels + countdown + throttle', b19ok,
         r19.__err ? r19.__err : JSON.stringify(r19));
 
+  // --- behaviour 20 (Q129): pause evolution rows are the entry point to the detail page ---
+  const b20 = ev(`(function(){
+    try {
+      var out = {};
+      var host = document.getElementById('pause-evo-list');
+      if (!host) return 'no #pause-evo-list';
+      renderEvoList();
+      var rows = host.querySelectorAll('[data-evo]');
+      out.rows = rows.length;
+      out.role = rows.length ? rows[0].getAttribute('role') : null;
+      // cursor must announce clickability
+      out.cursor = rows.length ? getComputedStyle(rows[0]).cursor : null;
+      // a real click on the 3rd row must open the detail page and focus that evolution
+      var id = rows.length > 2 ? rows[2].getAttribute('data-evo') : null;
+      state.evoDetailFocus = null;
+      rows[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      out.focusId = state.evoDetailFocus;
+      out.clickedId = id;
+      out.highlighted = !!document.querySelector('.ec-focused[data-evo-detail="' + id + '"]');
+      out.screenOpen = !document.getElementById('evo-detail-screen').classList.contains('hidden');
+      // keyboard parity: Enter on a row does the same thing
+      state.evoDetailFocus = null;
+      rows[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      out.keyboardFocus = state.evoDetailFocus;
+      // the dead evo-locked branch must be gone from the shipped source
+      out.deadGone = true;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r20 = parsed(b20);
+  const b20ok = !r20.__err
+    && r20.rows === 12 && r20.role === 'button' && r20.cursor === 'pointer'
+    && r20.focusId === r20.clickedId && r20.clickedId !== null
+    && r20.highlighted === true && r20.screenOpen === true
+    && r20.keyboardFocus !== null
+    && !html.includes("evolutionProgress ? 'evo-partial'");
+  check('B20 (Q129) clicking a pause evolution row opens its detail page and highlights it', b20ok,
+        r20.__err ? r20.__err : JSON.stringify(r20));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));
