@@ -111,9 +111,10 @@ One bug was introduced and caught by the new armour test: `recalcArmorPool(false
 only clamps, so `startGame()` would have begun a fresh run with the previous run's leftover
 pool. A fresh run now fills explicitly.
 
-**P1**
-- **Q030/Q138** tank-part system: Yt01 framework + Yt03 12-evo parts, single barrel regardless of multishot
-- **Q075/Q129** 3-lane combat meter + 5-column pause grid merge
+**P1 — COMPLETE**
+
+Q030/Q138 (tank parts, single barrel), Q075/Q129 (3-lane meter + pause grid), Q038,
+Q044, Q062/Q063, Q064, Q116, Q117, Q125. Guarded by B11–B19.
 
 **P2**
 - **Q003** PWA package (manifest + sw.js + icons)
