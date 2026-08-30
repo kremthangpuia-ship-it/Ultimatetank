@@ -795,6 +795,22 @@ setTimeout(() => {
   check('B21 (Q066) daily-challenge stub and all 8 call sites removed, neighbours intact', b21ok,
         `function bumpDaily present=${html.includes('function bumpDaily')}, call sites present=${html.includes('bumpDaily(')}, checkAchievements=${html.includes('function checkAchievements')}, trackKill=${html.includes('function trackKill')}`);
 
+  // --- behaviour 22: updateHUD() must not throw, even on paths jsdom rarely reaches ---
+  // The _dispDmg ReferenceError shipped undetected because updateHUD() is called inside a
+  // blanket try/catch. This calls it directly with the pause-screen damage cell present,
+  // which is the branch that was broken, and fails on any throw.
+  const b22 = ev(`(function(){
+    try {
+      state.playerStats = state.playerStats || {};
+      state.overchargeUntil = 60; state.runTime = 10;
+      updateHUD();
+      state.overchargeUntil = 0;
+      return 'ok';
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  check('B22 updateHUD() completes without throwing (pause damage-cell path)',
+        b22 === '"ok"', typeof b22 === 'string' ? b22.slice(0,140) : String(b22));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

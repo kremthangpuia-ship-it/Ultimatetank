@@ -1143,7 +1143,17 @@
             // Fix5: pause damage cell reflects Overcharge/Blast boost (same as HUD pill)
             const _pauseDmgEl = dom('stat-damage');
             if (_pauseDmgEl) {
-                _pauseDmgEl.textContent = _dispDmg; // reuse _dispDmg computed above for HUD pill
+                // Q075 fix: this used to reuse _dispDmg/_isOverchg/_isBlast computed by the
+                // HUD pill code. That block was deleted when the pills were replaced by the
+                // 3-lane meter, which left these three undeclared and threw a
+                // ReferenceError at runtime. They are recomputed locally instead.
+                const _pdBase    = state.playerStats.damage || 100;
+                const _isOverchg = (state.runTime || 0) < (state.overchargeUntil || 0);
+                const _isBlast   = (state.runTime || 0) < (state.blastUntil || 0);
+                let _dispDmg = _pdBase;
+                if (_isOverchg) _dispDmg = Math.round(_pdBase * 1.3);
+                if (_isBlast)   _dispDmg = Math.round(_dispDmg * 1.2);
+                _pauseDmgEl.textContent = _dispDmg;
                 const _pauseDmgCell = _pauseDmgEl.closest ? _pauseDmgEl.closest('.psg-cell') : null;
                 if (_pauseDmgCell) _pauseDmgCell.style.borderColor = (_isOverchg || _isBlast)
                     ? '#fbbf24' : 'rgba(255,255,255,0.10)';
