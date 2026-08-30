@@ -1803,3 +1803,30 @@
         .run-label { color: #D1B87D; }
         #pause-screen { gap: 10px; }
         #pause-screen .btn { margin-top: 6px; }
+
+        /* Q075 / Q129 — the single 3-lane power meter (SPD / DMG / ARM).
+           One component, two hosts: #hud-power-meter and #pause-power-meter. */
+        .power-meter-host { width: 100%; }
+        .power-meter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .pm-lane {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 7px; padding: 4px 6px 5px;
+            transition: border-color .18s ease;
+        }
+        .pm-lane.pm-boost { border-color: #fbbf24; box-shadow: 0 0 9px rgba(251,191,36,.32) inset; }
+        .pm-lane.pm-slow  { border-color: #f97316; }
+        .pm-head { display: flex; align-items: center; gap: 4px; font-size: 9px; line-height: 1.2; }
+        .pm-label { font-weight: 800; letter-spacing: .8px; opacity: .72; }
+        .pm-state { font-weight: 800; letter-spacing: .6px; font-size: 8px; }
+        .pm-state.pm-up   { color: #fbbf24; }
+        .pm-state.pm-down { color: #f97316; }
+        .pm-num { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; opacity: .95; }
+        .pm-track {
+            height: 4px; margin-top: 4px; border-radius: 3px;
+            background: rgba(255,255,255,0.10); overflow: hidden;
+        }
+        .pm-fill { height: 100%; width: 0%; border-radius: 3px; background: #9aa6b2; transition: width .15s linear, background .18s ease; }
+        .pm-lane.pm-boost .pm-fill { background: #fbbf24; }
+        .pm-lane.pm-slow  .pm-fill { background: #f97316; }
+        .pm-lane.pm-arm   .pm-fill { background: #38bdf8; }

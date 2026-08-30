@@ -671,6 +671,80 @@ setTimeout(() => {
   check('B18 (Q030/Q138) single barrel at any multishot, 12 evo fittings, no accumulation', b18ok,
         r18.__err ? r18.__err : `turret meshes ms0=${r18.ms0} ms4=${r18.ms4} overkill=${r18.overkill}, baseline=${r18.baseline} all12=${r18.all12} (turret ${r18.all12turret}), rebuild ${r18.first}->${r18.afterRebuild}`);
 
+  // --- behaviour 19 (Q075/Q129): one 3-lane meter, labels, cap, countdown, throttle ---
+  const b19 = ev(`(function(){
+    try {
+      var out = {};
+      // one component mounted into an arbitrary host
+      var host = document.createElement('div');
+      host.id = 'test-meter';
+      document.body.appendChild(host);
+      out.built = buildPowerMeter('test-meter', 't');
+      out.lanes = host.querySelectorAll('.pm-lane').length;
+      out.ids = ['t-pm-spd','t-pm-dmg','t-pm-arm'].every(function(id){ return !!document.getElementById(id); });
+
+      var realStats = state.playerStats, realRT = state.runTime;
+      try {
+        // hasted: BOOST label, and the number is clamped to the movement cap
+        state.playerStats = { speed: 100, damage: 100, adrenaline: 9 };
+        state.speedBoostUntil = 999999; state.runTime = 0;
+        state._rootSlow = 1;
+        // stacks live on playerStats.adrenaline, not state.adrenalineStacks.
+        // 9 stacks -> 1 + 0.25*(9+1) = 3.5 uncapped, which must clamp to the 2.6 ceiling.
+        updatePowerMeter('t', true);
+        out.spdHasted = document.getElementById('t-pm-spd-num').textContent;
+        out.spdState  = document.getElementById('t-pm-spd-state').textContent;
+        out.cap       = CONFIG.playerSpeedMaxMult;
+
+        // slowed: SLOWED label
+        state.speedBoostUntil = 0; state._rootSlow = 0.5;
+        updatePowerMeter('t', true);
+        out.spdSlowed = document.getElementById('t-pm-spd-state').textContent;
+        out.spdSlowedNum = document.getElementById('t-pm-spd-num').textContent;
+
+        // overcharge: countdown on the damage lane (Yt02's contribution)
+        state._rootSlow = 1;
+        state.overchargeUntil = 60; state.runTime = 52.4;
+        updatePowerMeter('t', true);
+        out.dmgNum = document.getElementById('t-pm-dmg-num').textContent;
+
+        // armor lane reads the pool
+        state.armorMaxHp = 40; state.armorHp = 25.7;
+        updatePowerMeter('t', true);
+        out.armNum = document.getElementById('t-pm-arm-num').textContent;
+
+        // throttle: a plain call right after a forced one is refused; force overrides
+        out.throttled = updatePowerMeter('t') === false;
+        out.forcedAgain = updatePowerMeter('t', true) === true;
+      } finally {
+        state.playerStats = realStats; state.runTime = realRT;
+        state.speedBoostUntil = 0; state.overchargeUntil = 0;
+        state._rootSlow = 1;
+        delete _pmLast['t'];
+        host.remove();
+      }
+      // Q075 "kill the duplicate meters": the old pills must be gone from the shipped DOM
+      out.pillsGone = document.getElementById('hud-speed-pill') === null;
+      out.hostsMounted = !!document.getElementById('hud-power-meter') && !!document.getElementById('pause-power-meter');
+      out.hudHasLanes = document.querySelectorAll('#hud-power-meter .pm-lane').length;
+      out.pauseHasLanes = document.querySelectorAll('#pause-power-meter .pm-lane').length;
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r19 = parsed(b19);
+  const b19ok = !r19.__err
+    && r19.built === true && r19.lanes === 3 && r19.ids === true
+    && r19.spdHasted === '260%'                      // 3.5 clamped to the 2.6 cap
+    && r19.spdState === '\u25b2 BOOST'
+    && r19.spdSlowed === '\u25bc SLOWED' && r19.spdSlowedNum === '50%'
+    && r19.dmgNum === '130% \u23f18s'               // 1.3x overcharge, 8s remaining
+    && r19.armNum === '25/40'                        // floored, per Q076
+    && r19.throttled === true && r19.forcedAgain === true
+    && r19.pillsGone === true
+    && r19.hostsMounted === true && r19.hudHasLanes === 3 && r19.pauseHasLanes === 3;
+  check('B19 (Q075/Q129) one 3-lane meter in both hosts, cap + labels + countdown + throttle', b19ok,
+        r19.__err ? r19.__err : JSON.stringify(r19));
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

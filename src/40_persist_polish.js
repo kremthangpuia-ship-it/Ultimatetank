@@ -403,6 +403,10 @@ function updateCombo(dt){
 
 
 loadGame();
+// Q075/Q129: mount the power meter into both of its hosts once, at boot. Both hosts
+// then read from the same component, so neither can drift from the other.
+try { buildPowerMeter('hud-power-meter', 'hud'); } catch (e) {}
+try { buildPowerMeter('pause-power-meter', 'pse'); } catch (e) {}
 try { updateHUD(); } catch (e) {}
 try { updateHomeStats(); } catch (e) {}
 

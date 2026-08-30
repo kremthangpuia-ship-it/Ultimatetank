@@ -54,8 +54,11 @@
                 <div id="combo-chip"><span id="combo-count">×1</span></div>
                 <div id="buff-row" class="buff-row"></div>
                 <div id="stat-bar" class="stat-bar-hud">
-                    <span class="sbar-pill" id="hud-speed-pill">⚡<span id="hud-speed">100</span>%</span>
-                    <span class="sbar-pill">💥<span id="hud-damage">100</span>%</span>
+                    <!-- Q075: the ⚡ and 💥 pills are gone. This host is filled by
+                         buildPowerMeter() with the same component the pause screen uses,
+                         so speed/damage/armor are read from one place and can never
+                         disagree with each other. -->
+                    <div id="hud-power-meter" class="power-meter-host"></div>
                 </div>
             </div>
             <div id="diag-overlay" class="diag-overlay hidden"></div>
@@ -294,6 +297,9 @@
             </div>
 
             <!-- Stat grid -->
+            <!-- Q129: Yt03's meter lane sits at the top of Yt02's 5-column grid. Same
+                 component as the HUD, different host. -->
+            <div id="pause-power-meter" class="power-meter-host"></div>
             <div class="pause-stat-grid">
                 <div class="psg-cell"><div class="psg-icon">❤️</div><div class="psg-label">Max HP</div><div class="psg-val" id="stat-maxhp">100</div></div>
                 <div class="psg-cell"><div class="psg-icon">🛡️</div><div class="psg-label">Shield HP</div><div class="psg-val" id="stat-armor" style="font-size:11px">—</div></div>

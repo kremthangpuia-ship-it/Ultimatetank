@@ -1128,59 +1128,10 @@
             
             dom('stat-speed').textContent = state.playerStats.speed;
             dom('stat-damage').textContent = state.playerStats.damage;
-            // v1.4: in-game speed/damage pills
-            const _hudSpd = document.getElementById('hud-speed');
-            const _hudDmg = document.getElementById('hud-damage');
-            // Fix5: show live speed including temporary boosts and slows
-            const _baseSpd = state.playerStats.speed || 100;
-            const _rootMult = (state._rootSlow || 1) < 1 ? state._rootSlow : 1;
-            const _isSlowed = _rootMult < 1;
-            const _isHasted = (state.runTime || 0) < (state.speedBoostUntil || 0);
-            let _dispSpd = _baseSpd;
-            if (_isSlowed) _dispSpd = Math.round(_baseSpd * _rootMult);
-            if (_isHasted) {
-                // Q011: reads the SAME helper the movement code does, so the meter can
-                // never display a number the physics does not apply.
-                _dispSpd = Math.round(_baseSpd * adrenalineSpeedMult());
-            }
-            if (_hudSpd) _hudSpd.textContent = _dispSpd;
-            // Pill colour: gold = hasted, amber = slowed, default = normal
-            const _spdPill = document.getElementById('hud-speed-pill');
-            if (_spdPill) {
-                if (_isHasted)       _spdPill.style.borderColor = '#fbbf24';
-                else if (_isSlowed)  _spdPill.style.borderColor = '#f97316';
-                else                 _spdPill.style.borderColor = 'rgba(255,255,255,0.15)';
-            }
-            // SLOWED label below pill
-            let _slowedEl = document.getElementById('hud-slowed-label');
-            if (_isSlowed) {
-                if (!_slowedEl) {
-                    _slowedEl = document.createElement('div');
-                    _slowedEl.id = 'hud-slowed-label';
-                    _slowedEl.style.cssText = 'font-size:9px;font-weight:800;color:#f97316;letter-spacing:1px;text-align:center;pointer-events:none';
-                    _slowedEl.textContent = '▼ SLOWED';
-                    const _sb = document.getElementById('stat-bar');
-                    if (_sb) _sb.appendChild(_slowedEl);
-                }
-            } else if (_slowedEl) {
-                _slowedEl.remove();
-            }
-            // Fix: live damage pill — reflects Overcharge (+30%) and Blast (+20%) when active
-            const _baseDmg   = state.playerStats.damage || 100;
-            const _isOverchg = (state.runTime || 0) < (state.overchargeUntil || 0);
-            const _isBlast   = (state.runTime || 0) < (state.blastUntil || 0);
-            let _dispDmg = _baseDmg;
-            if (_isOverchg) _dispDmg = Math.round(_baseDmg * 1.3);
-            if (_isBlast)   _dispDmg = Math.round(_dispDmg * 1.2);
-            // Overcharge countdown: show remaining seconds next to boosted value
-            const _overchgSecs = _isOverchg ? Math.ceil((state.overchargeUntil || 0) - (state.runTime || 0)) : 0;
-            if (_hudDmg) _hudDmg.textContent = _dispDmg + (_isOverchg ? ' ⏱' + _overchgSecs + 's' : (_isBlast ? ' ⚡' : ''));
-            // Damage pill glows gold when boosted
-            const _dmgPillParent = _hudDmg ? _hudDmg.parentElement : null;
-            if (_dmgPillParent) {
-                _dmgPillParent.style.borderColor = (_isOverchg || _isBlast)
-                    ? '#fbbf24' : 'rgba(255,255,255,0.15)';
-            }
+            // Q075: one meter, both hosts. This replaces the separate ⚡ and 💥 pills and
+            // the SLOWED label that used to be created and destroyed every frame.
+            updatePowerMeter('hud');
+
             // v1.5: armor shown as current/max shield pool
             const _pauseArmorMax = state.armorMaxHp || state.playerStats.armor || 0;
             const _pauseArmorCur = Math.max(0, Math.floor(state.armorHp || 0));
@@ -1455,3 +1406,110 @@
             needsRender = true; // FIX (Tier 3)
         }
 
+        // ============================================================
+        // Q075 / Q129 — the single 3-lane power meter (SPD / DMG / ARM)
+        //
+        // Yt03's 3-lane layout is the frame because it is the only one of the three with
+        // an armor lane. Yt01 contributes the BOOST / SLOWED status labels and the
+        // cap-aware speed number; Yt02 contributes the countdown on the damage lane.
+        //
+        // ONE component, two hosts (#hud-power-meter and #pause-power-meter) — the
+        // decision is explicit about killing duplicate meters. Every value here is read
+        // through the same helpers the physics and combat code use, so the meter cannot
+        // display a number the simulation does not apply.
+        // ============================================================
+        const _pmLast = {};   // per-host refresh timestamps
+
+        function powerMeterHTML(prefix) {
+            const lane = (id, icon, label, cls) =>
+                '<div class="pm-lane' + (cls ? ' ' + cls : '') + '" id="' + prefix + '-pm-' + id + '">'
+              +   '<div class="pm-head">'
+              +     '<span class="pm-label">' + icon + ' ' + label + '</span>'
+              +     '<span class="pm-state" id="' + prefix + '-pm-' + id + '-state"></span>'
+              +     '<span class="pm-num" id="' + prefix + '-pm-' + id + '-num">—</span>'
+              +   '</div>'
+              +   '<div class="pm-track"><div class="pm-fill" id="' + prefix + '-pm-' + id + '-fill"></div></div>'
+              + '</div>';
+            return '<div class="power-meter">'
+                 + lane('spd', '⚡', 'SPD')
+                 + lane('dmg', '💥', 'DMG')
+                 + lane('arm', '🛡️', 'ARM', 'pm-arm')
+                 + '</div>';
+        }
+
+        function buildPowerMeter(hostId, prefix) {
+            const host = document.getElementById(hostId);
+            if (!host) return false;
+            host.innerHTML = powerMeterHTML(prefix);
+            return true;
+        }
+
+        // Read one lane's three elements, tolerating a host that has not been built yet.
+        function _pm(prefix, id) {
+            return {
+                lane:  document.getElementById(prefix + '-pm-' + id),
+                state: document.getElementById(prefix + '-pm-' + id + '-state'),
+                num:   document.getElementById(prefix + '-pm-' + id + '-num'),
+                fill:  document.getElementById(prefix + '-pm-' + id + '-fill')
+            };
+        }
+
+        // force=true bypasses the 0.15s throttle — used when the pause screen opens, so the
+        // embedded lane is never a stale copy of the last HUD frame.
+        function updatePowerMeter(prefix, force) {
+            const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            if (!force && _pmLast[prefix] !== undefined && (now - _pmLast[prefix]) < 150) return false;
+            _pmLast[prefix] = now;
+
+            const ps = state.playerStats || {};
+
+            // ---- SPD lane -------------------------------------------------
+            const baseSpd  = ps.speed || 100;
+            const rootMult = (state._rootSlow || 1) < 1 ? state._rootSlow : 1;
+            const isSlowed = rootMult < 1;
+            const isHasted = (state.runTime || 0) < (state.speedBoostUntil || 0);
+            // Cap-aware: the displayed multiplier is clamped to the same ceiling the
+            // movement code enforces (Q010), so a stacked build cannot read 400%.
+            const capMult = (typeof CONFIG !== 'undefined' && CONFIG.playerSpeedMaxMult)
+                          ? CONFIG.playerSpeedMaxMult : 2.6;
+            let spdMult = 1;
+            if (isHasted)      spdMult = adrenalineSpeedMult();
+            else if (isSlowed) spdMult = rootMult;
+            spdMult = Math.min(capMult, spdMult);
+            const spd = _pm(prefix, 'spd');
+            if (spd.num)   spd.num.textContent = Math.round(spdMult * 100) + '%';
+            if (spd.fill)  spd.fill.style.width = Math.max(0, Math.min(100, (spdMult / capMult) * 100)) + '%';
+            if (spd.state) {
+                spd.state.textContent = isHasted ? '▲ BOOST' : (isSlowed ? '▼ SLOWED' : '');
+                spd.state.className = 'pm-state ' + (isHasted ? 'pm-up' : (isSlowed ? 'pm-down' : ''));
+            }
+            if (spd.lane)  spd.lane.className = 'pm-lane' + (isHasted ? ' pm-boost' : (isSlowed ? ' pm-slow' : ''));
+
+            // ---- DMG lane -------------------------------------------------
+            const baseDmg    = ps.damage || 100;
+            const isOverchg  = (state.runTime || 0) < (state.overchargeUntil || 0);
+            const isBlast    = (state.runTime || 0) < (state.blastUntil || 0);
+            let dmgMult = 1;
+            if (isOverchg) dmgMult *= 1.3;
+            if (isBlast)   dmgMult *= 1.2;
+            // Yt02's countdown lives on this lane: seconds remaining on Overcharge.
+            const oSecs = isOverchg ? Math.ceil((state.overchargeUntil || 0) - (state.runTime || 0)) : 0;
+            const dmg = _pm(prefix, 'dmg');
+            if (dmg.num)   dmg.num.textContent = Math.round(dmgMult * 100) + '%' + (isOverchg ? ' ⏱' + oSecs + 's' : (isBlast ? ' ⚡' : ''));
+            if (dmg.fill)  dmg.fill.style.width = Math.max(0, Math.min(100, ((dmgMult - 1) / 0.56) * 100)) + '%';
+            if (dmg.state) {
+                dmg.state.textContent = (isOverchg || isBlast) ? '▲ BOOST' : '';
+                dmg.state.className = 'pm-state' + ((isOverchg || isBlast) ? ' pm-up' : '');
+            }
+            if (dmg.lane)  dmg.lane.className = 'pm-lane' + ((isOverchg || isBlast) ? ' pm-boost' : '');
+
+            // ---- ARM lane (the reason Yt03's layout won) ------------------
+            const armMax = state.armorMaxHp || ps.armor || 0;
+            const armCur = Math.max(0, Math.floor(state.armorHp || 0));
+            const arm = _pm(prefix, 'arm');
+            if (arm.num)   arm.num.textContent = armMax > 0 ? (armCur + '/' + Math.floor(armMax)) : '—';
+            if (arm.fill)  arm.fill.style.width = armMax > 0
+                             ? Math.max(0, Math.min(100, (armCur / armMax) * 100)) + '%' : '0%';
+            if (arm.state) { arm.state.textContent = ''; arm.state.className = 'pm-state'; }
+            return true;
+        }

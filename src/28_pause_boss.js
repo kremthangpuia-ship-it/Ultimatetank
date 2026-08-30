@@ -18,6 +18,9 @@
             const rv = document.getElementById('pause-revive-count');
             if (rv) rv.textContent = state.continuesThisRun || 0;
             try { renderBuildList(); } catch (e) {}
+            // Q129: the embedded lane must reflect the instant of pausing, not the last
+            // throttled HUD frame, so this bypasses the 0.15s refresh gate.
+            try { updatePowerMeter('pse', true); } catch (e) {}
             SFX.engineStop(); SFX.musicStop(); // v23+v24
             state.gamePhase = 'paused';
             needsRender = true; // FIX (Tier 3): one final render for the pause backdrop
