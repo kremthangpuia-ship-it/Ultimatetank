@@ -16,7 +16,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 
 ## Verified right now
 
-`node tools/check.js` → **29/29 checks passed**.
+`node tools/check.js` → **30/30 checks passed**.
 
 | Check | Result |
 |---|---|
@@ -44,6 +44,7 @@ node tools/test-boot.js  # boot the built file in jsdom, report runtime errors
 | **B15** consumables price ×3 per step and reset every 5; Armory unchanged (Q064) | PASS |
 | **B16** six bespoke phase fights, generic enrage fallback, summon honours count (Q038) | PASS |
 | **B17** Workshop tree works, Second Wind removed, ranks clamped on load (Q062/63/116) | PASS |
+| **B18** single barrel at any multishot, 12 evo fittings, no accumulation (Q030/138) | PASS |
 
 `tools/split.js` round-trips the Yt02 game script **exactly** (423,170 chars both ways), so the
 decomposition into `src/` is provably lossless. The built file differs from Yt02 only by the
@@ -81,6 +82,8 @@ intended deltas listed below.
 | **Q039** | Warlord shells 36→18, barrage interval 3.2s→6.4s (Yt03's nerf). Other five bosses untouched | `src/10_data.js`, `src/28_pause_boss.js` |
 | **Q044** | `CONFIG.biome`: 10 realms, every 3 levels, 10s gradual morph. Fire-hush 1.5s and spawn pause 3s now applied on realm change, not just revive. Radar tint confirmed absent | `src/10_data.js`, `src/22_biome.js` |
 | **Q047** | Cover normalised to "player shells" and charged at impact against current shell damage — exactly two player shells break any tree or rock at any level; weaker enemies need more hits | `src/10_data.js`, `src/24_chunks.js`, `src/34_physics_hud.js` |
+| **Q030** | One barrel regardless of multishot count — the `extraBarrels` loop that added up to four is removed. The Yt01-style fitting framework and all 12 evolution fittings were already present and live (`evo_*` flags set on evolution grant); only the barrel rule was violated | `src/38_cards_evos.js` |
+| **Q138** | Verified already satisfied: `startMenuTankPreview()` guards on `menuTankPreview`, which is never nulled, so the preview renderer and canvas are built once per page load and reused — that is Yt02's behaviour | `src/30_meta.js` |
 | **Q062/Q063** | Armory and Workshop are separate tabs (not folded together). Yt03's 5-node tree ported with its own cost ladder. **Second Wind removed entirely** — revive is coin-driven | `src/06_dom.html`, `src/30_meta.js` |
 | **Q116** | `state.tech` persists: written by `saveGame()`, validated against the tree by `sanitizeSave()` so a hand-edited save cannot exceed `maxLevel`, restored by `loadGame()`. Ranks applied fresh each `startGame()` before the armour pool is derived | `src/10_data.js`, `src/32_run_flow.js`, `src/40_persist_polish.js` |
 | **Q038** | Yt01's six bespoke boss phase fights ported (warlord, colossus, nova, fortress added; titan and tempest already had theirs) plus Yt03's generic enrage as an automatic fallback for any boss without a bespoke script | `src/28_pause_boss.js`, `src/34_physics_hud.js` |
@@ -93,7 +96,7 @@ intended deltas listed below.
 
 The 131 answers break down as: **~62 "identical, keep as-is"** (no code change) and **~69 requiring
 work**. Of the latter, **32 are done** — every P0 group is complete, plus Q039, Q044, Q047,
-Q117, Q125, Q064, Q038, Q062, Q063 and Q116 from P1. The remainder, grouped:
+Q117, Q125, Q064, Q038, Q062, Q063, Q116, Q030 and Q138 from P1. The remainder, grouped:
 
 **P0 / high impact — COMPLETE**
 

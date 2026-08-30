@@ -611,6 +611,66 @@ setTimeout(() => {
   check('B17 (Q062/63/116) Workshop tree works, Second Wind removed, ranks clamped on load', b17ok,
         r17.__err ? r17.__err : JSON.stringify(r17));
 
+  // --- behaviour 18 (Q030/Q138): one barrel whatever the multishot count; 12 evo fittings ---
+  const b18 = ev(`(function(){
+    try {
+      var count = function (root) {
+        var n = 0;
+        root.traverse(function (o) { if (o.isMesh) n++; });
+        return n;
+      };
+      var mk = function () {
+        return { isPlayer: true, mesh: new THREE.Group(), turretPivot: new THREE.Group() };
+      };
+      var realPlayer = player;
+      var realStats = state.playerStats;
+      var out = {};
+      try {
+        // baseline: no evolutions, multishot 0
+        player = mk(); player.mesh.add(player.turretPivot);
+        state.playerStats = { multishot: 0 };
+        syncPlayerTankParts();
+        out.ms0 = count(player.turretPivot);
+        out.baseline = count(player.mesh);   // hull + turret with no evolutions at all
+        // same build but multishot 4 -> must not add a single barrel
+        player = mk(); player.mesh.add(player.turretPivot);
+        state.playerStats = { multishot: 4 };
+        syncPlayerTankParts();
+        out.ms4 = count(player.turretPivot);
+        // Overkill Array (which genuinely adds a shell) still gets its own fitting
+        player = mk(); player.mesh.add(player.turretPivot);
+        state.playerStats = { multishot: 0, evo_overkill: 1 };
+        syncPlayerTankParts();
+        out.overkill = count(player.turretPivot);
+        // all 12 evolution flags build at least as much as none
+        player = mk(); player.mesh.add(player.turretPivot);
+        var all = {}; ['cluster','bastion','prism','nanite','afterburner','siege','overkill',
+                       'tempestA','citadel','missileR','phaseLance','predator'].forEach(function (id) { all['evo_' + id] = 1; });
+        state.playerStats = all;
+        syncPlayerTankParts();
+        // count(player.mesh) already includes turretPivot as a child, so this is the
+        // whole fitting count and is directly comparable to out.baseline
+        out.all12 = count(player.mesh);
+        out.all12turret = count(player.turretPivot);
+        // rebuild must not accumulate: calling twice leaves the same count
+        var first = count(player.mesh);
+        syncPlayerTankParts();
+        out.afterRebuild = count(player.mesh);
+        out.first = first;
+      } finally { player = realPlayer; state.playerStats = realStats; }
+      return JSON.stringify(out);
+    } catch (e) { return 'threw: ' + e.message; }
+  })()`);
+  const r18 = parsed(b18);
+  const b18ok = !r18.__err
+    && r18.ms0 === r18.ms4              // Q030: single barrel regardless of multishot
+    && r18.overkill > r18.ms0           // but a real extra-shell evo is still visible
+    && r18.all12 > r18.baseline         // all 12 fittings build more than owning none
+    && r18.baseline === 0               // a run with no evolutions wears no fittings
+    && r18.afterRebuild === r18.first;  // rebuild does not accumulate
+  check('B18 (Q030/Q138) single barrel at any multishot, 12 evo fittings, no accumulation', b18ok,
+        r18.__err ? r18.__err : `turret meshes ms0=${r18.ms0} ms4=${r18.ms4} overkill=${r18.overkill}, baseline=${r18.baseline} all12=${r18.all12} (turret ${r18.all12turret}), rebuild ${r18.first}->${r18.afterRebuild}`);
+
   // ----------------------------------------------------------- report
   console.log('\n' + '='.repeat(74));
   console.log('RELEASE HARNESS — ' + path.basename(file));

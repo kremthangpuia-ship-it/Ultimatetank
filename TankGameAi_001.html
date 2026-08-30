@@ -9580,11 +9580,13 @@ function syncPlayerTankParts(){
     if ((ps.damage || 100) > 100) kitCyl(tur, 0.22, 0.2, 0.42, 0, 0.55, 2.55, dark, Math.PI / 2, 0, 0);
     if ((ps.crit || 0) > 0) kitCyl(tur, 0.08, 0.1, 0.55, 0.42, 1.05, 0.35, dark, Math.PI / 2, 0, 0.15);
     if ((ps.pierce || 0) > 0) kitCyl(tur, 0.14, 0.11, 0.32, 0, 0.55, 3.15, cyan, Math.PI / 2, 0, 0);
-    const extraBarrels = Math.min(4, ps.multishot || 0);
-    for (let i = 0; i < extraBarrels; i++) {
-        const side = (i % 2 === 0 ? 1 : -1) * (0.38 + Math.floor(i / 2) * 0.28);
-        kitCyl(tur, 0.09, 0.11, 2.6, side, 0.5, 2.2, dark, Math.PI / 2, 0, 0);
-    }
+    // Q030: ONE barrel regardless of multishot count. Multishot is a spread stat, not a
+    // second cannon. This loop used to add up to four extra barrels as multishot climbed,
+    // which made a wide-spread build look like a different tank entirely and contradicted
+    // the decision outright. Overkill Array (which really does add a shell) gets its own
+    // distinct fitting below, so that one is still readable.
+    //   const extraBarrels = Math.min(4, ps.multishot || 0);
+    //   for (let i = 0; i < extraBarrels; i++) { ... kitCyl(tur, ...) }
     if ((ps.missile || 0) > 0) {
         kitBox(tur, 0.55, 0.22, 0.85, -0.95, 0.85, 0.15, orange);
         kitCyl(tur, 0.07, 0.07, 0.7, -1.08, 0.85, 0.2, orange, Math.PI / 2, 0, 0);
